@@ -1,0 +1,180 @@
+.modulo {
+  width: 100%;
+}
+
+/* ENCABEZADO */
+
+.modulo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+
+  margin-bottom: 25px;
+}
+
+.etiqueta {
+  font-size: 10px;
+  letter-spacing: 2px;
+
+  color: #b62a2d;
+
+  font-weight: bold;
+}
+
+.modulo-header h1 {
+  margin: 7px 0;
+
+  color: #222223;
+
+  font-size: 27px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.barra {
+  display: inline-block;
+
+  width: 5px;
+  height: 28px;
+
+  background-color: #b62a2d;
+
+  border-radius: 10px;
+}
+
+.modulo-header p {
+  margin: 0;
+
+  color: #777;
+
+  font-size: 14px;
+}
+
+.ruta {
+  color: #999;
+  font-size: 13px;
+}
+
+.ruta strong {
+  color: #b62a2d;
+}
+
+/* TARJETA */
+
+.tarjeta {
+  min-height: 330px;
+
+  background-color: #fefefe;
+
+  border-radius: 16px;
+
+  padding: 45px;
+
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+
+  justify-content: center;
+  align-items: center;
+
+  text-align: center;
+
+  box-shadow: 0 5px 25px rgba(34, 34, 35, 0.07);
+
+  border: 1px solid #f3e7e7;
+}
+
+/* ICONO */
+
+.icono-modulo {
+  width: 75px;
+  height: 75px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  border-radius: 50%;
+
+  background-color: #f8dddd;
+
+  font-size: 32px;
+
+  margin-bottom: 15px;
+}
+
+.tarjeta h2 {
+  color: #222223;
+
+  margin: 5px 0 10px;
+
+  font-size: 23px;
+}
+
+.tarjeta p {
+  color: #777;
+
+  line-height: 1.7;
+
+  max-width: 600px;
+
+  margin: 0 0 20px;
+}
+
+/* ETIQUETA DE ESTADO */
+
+.estado {
+  background-color: #f8dddd;
+
+  color: #b62a2d;
+
+  font-size: 12px;
+
+  font-weight: bold;
+
+  padding: 8px 15px;
+
+  border-radius: 20px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 700px) {
+
+  .modulo-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .ruta {
+    display: none;
+  }
+
+  .tarjeta {
+    padding: 30px 20px;
+    min-height: 280px;
+  }
+
+  .modulo-header h1 {
+    font-size: 23px;
+  }
+
+}
+
+@media (max-width: 450px) {
+
+  .tarjeta {
+    padding: 25px 15px;
+  }
+
+  .icono-modulo {
+    width: 65px;
+    height: 65px;
+    font-size: 27px;
+  }
+
+}
