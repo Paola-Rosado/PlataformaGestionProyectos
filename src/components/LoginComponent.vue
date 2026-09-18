@@ -13,22 +13,42 @@ const usuarios = [
   {
     correo: 'paola@gmail.com',
     password: '1234',
-    codigo: 'admin'
+    codigo: 'admin',
+    isAdmin: true,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 3,
+      Roles: 3,
+      Historias: 3,
+    }
   },
   {
     correo: 'Rubyl@gmail.com',
     password: '5678',
-    codigo: 'admin'
+    codigo: 'admin',
+    isAdmin: false,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 1,
+      Roles: 2,
+      Historias: 1,
+    }
   },
   {
     correo: 'Monsen@gmail.com',
     password: 'admin123',
-    codigo: 'admin'
+    codigo: 'admin',
+    isAdmin: false,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 1,
+      Roles: 1,
+      Historias: 2,
+    }
   }
 ]
 
 const iniciarSesion = () => {
-
   // Verificar que los campos estén llenos
   if (
     correo.value === '' ||
@@ -48,7 +68,13 @@ const iniciarSesion = () => {
   )
 
   if (usuarioEncontrado) {
-   alert('Credenciales correctas')
+    // 1. Guardamos el usuario exactamente con la estructura que el router espera
+    localStorage.setItem('user', JSON.stringify(usuarioEncontrado))
+
+    // 2. Opcional: puedes quitar la alerta para que sea más fluido, o dejarla
+    alert('Credenciales correctas')
+
+    // 3. Forzamos la navegación al panel
     router.push('/panel')
   } else {
     alert('Datos de acceso incorrectos')
