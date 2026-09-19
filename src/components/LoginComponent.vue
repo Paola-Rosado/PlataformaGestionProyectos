@@ -108,7 +108,7 @@ const iniciarSesion = () => {
     <form @submit.prevent="iniciarSesion">
 
       <div class="campo">
-        <label>Correo o usuario</label>
+        <label>Correo</label>
         <input
           v-model="correo"
           type="email"
