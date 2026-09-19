@@ -17,20 +17,41 @@ const passwordInvalida = ref(false)
 
 // Usuarios que pueden acceder
 const usuarios = [
-  {
+   {
     correo: 'paola@gmail.com',
     password: '1234',
-
+    codigo: 'admin',
+    isAdmin: true,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 3,
+      Roles: 3,
+      Historias: 3,
+    }
   },
   {
     correo: 'Rubyl@gmail.com',
     password: '5678',
-
+    codigo: 'admin',
+    isAdmin: false,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 1,
+      Roles: 2,
+      Historias: 1,
+    }
   },
   {
     correo: 'Monsen@gmail.com',
     password: 'admin123',
-
+    codigo: 'admin',
+    isAdmin: false,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 1,
+      Roles: 1,
+      Historias: 2,
+    }
   }
 ]
 
