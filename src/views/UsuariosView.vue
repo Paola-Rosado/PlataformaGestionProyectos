@@ -1,52 +1,104 @@
+<script setup lang="ts">
+
+/*
+  Vista base del módulo Usuarios.
+
+  Se deja preparada para que posteriormente
+  se agreguen las funciones del Planner.
+*/
+
+</script>
+
 <template>
 
-  <div class="modulo">
+  <section class="modulo">
 
-    <div class="modulo-header">
+    <header>
 
-      <div>
-        <span class="etiqueta">GESTIÓN</span>
+      <p class="etiqueta">
+        MÓDULO SELECCIONADO
+      </p>
 
-        <h1>
-          <span class="barra"></span>
-          Usuarios
-        </h1>
+      <h2>Usuarios</h2>
 
-        <p>
-          Administración y gestión de usuarios.
-        </p>
-      </div>
+      <p>
+        Administración de los usuarios del sistema.
+      </p>
 
-      <div class="ruta">
-        Inicio / <strong>Usuarios</strong>
-      </div>
-
-    </div>
+    </header>
 
     <div class="tarjeta">
 
-      <div class="icono-modulo">
-        👥
-      </div>
-
-      <h2>Módulo de Usuarios</h2>
+      <h3>Módulo de Usuarios</h3>
 
       <p>
-        En este apartado se agregarán posteriormente las funciones
+        Esta es la vista base del módulo Usuarios.
+        Posteriormente se podrán agregar las funciones
         para registrar, consultar y administrar usuarios.
       </p>
 
-      <span class="estado">
-        Módulo preparado
-      </span>
-
     </div>
 
-  </div>
+  </section>
 
 </template>
 
-<script setup lang="ts">
-// Aquí se agregarán posteriormente las funciones de Usuarios
-</script>
+<style scoped>
 
+.modulo {
+  width: 100%;
+}
+
+header {
+  margin-bottom: 25px;
+}
+
+.etiqueta {
+  margin: 0 0 7px;
+
+  color: #B62A2D;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+h2 {
+  margin: 0;
+
+  color: #222223;
+
+  font-size: 28px;
+}
+
+header p:last-child {
+  color: #777777;
+}
+
+.tarjeta {
+  padding: 30px;
+
+  border: 1px solid #eeeeee;
+  border-radius: 12px;
+
+  background: #FEFEFE;
+
+  box-shadow: 0 5px 18px rgba(34, 34, 35, 0.06);
+}
+
+.tarjeta h3 {
+  margin-top: 0;
+
+  color: #222223;
+}
+
+.tarjeta p {
+  margin-bottom: 0;
+
+  color: #666666;
+
+  line-height: 1.6;
+}
+
+</style>

@@ -1,16 +1,13 @@
-<template>
-  <div class="login-view">
-    <LoginComponent />
-  </div>
-</template>
-
 <script setup lang="ts">
+
+// Importa el formulario del Login.
 import LoginComponent from '../components/LoginComponent.vue'
+
 </script>
 
-<style scoped>
-.login-view {
-  width: 100%;
-  min-height: 100vh;
-}
-</style>
+<template>
+
+  <!-- Muestra el componente del Login -->
+  <LoginComponent />
+
+</template>

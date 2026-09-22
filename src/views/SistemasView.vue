@@ -1,54 +1,105 @@
+<script setup lang="ts">
+
+/*
+  Esta vista representa la estructura base
+  del módulo Sistemas.
+
+  Posteriormente aquí se pueden agregar las
+  funciones correspondientes al módulo.
+*/
+
+</script>
+
 <template>
 
-  <div class="modulo">
+  <section class="modulo">
 
-    <!-- ENCABEZADO DEL MÓDULO -->
-    <div class="modulo-header">
+    <header>
 
-      <div>
-        <span class="etiqueta">GESTIÓN</span>
-
-        <h1>
-          <span class="barra"></span>
-          Sistemas
-        </h1>
-
-        <p>
-          Administración y gestión de sistemas.
-        </p>
-      </div>
-
-      <div class="ruta">
-        Inicio / <strong>Sistemas</strong>
-      </div>
-
-    </div>
-
-    <!-- TARJETA -->
-    <div class="tarjeta">
-
-      <div class="icono-modulo">
-        🖥️
-      </div>
-
-      <h2>Módulo de Sistemas</h2>
-
-      <p>
-        En este apartado se agregarán posteriormente las funciones
-        correspondientes a la gestión de sistemas.
+      <p class="etiqueta">
+        MÓDULO SELECCIONADO
       </p>
 
-      <span class="estado">
-        Módulo preparado
-      </span>
+      <h2>Sistemas</h2>
+
+      <p>
+        Administración y gestión de sistemas.
+      </p>
+
+    </header>
+
+    <div class="tarjeta">
+
+      <h3>Módulo de Sistemas</h3>
+
+      <p>
+        Esta es la vista base del módulo Sistemas.
+        Aquí se agregarán posteriormente las funciones
+        correspondientes a este apartado.
+      </p>
 
     </div>
 
-  </div>
+  </section>
 
 </template>
 
-<script setup lang="ts">
-// Aquí se agregarán posteriormente las funciones de Sistemas
-</script>
+<style scoped>
 
+.modulo {
+  width: 100%;
+}
+
+header {
+  margin-bottom: 25px;
+}
+
+.etiqueta {
+  margin: 0 0 7px;
+
+  color: #B62A2D;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+h2 {
+  margin: 0;
+
+  color: #222223;
+
+  font-size: 28px;
+}
+
+header p:last-child {
+  color: #777777;
+}
+
+.tarjeta {
+  padding: 30px;
+
+  border: 1px solid #eeeeee;
+  border-radius: 12px;
+
+  background: #FEFEFE;
+
+  box-shadow: 0 5px 18px rgba(34, 34, 35, 0.06);
+}
+
+.tarjeta h3 {
+  margin-top: 0;
+
+  color: #222223;
+}
+
+.tarjeta p {
+  margin-bottom: 0;
+
+  color: #666666;
+
+  line-height: 1.6;
+}
+
+</style>
