@@ -5,6 +5,7 @@ import { computed } from 'vue'
 
 // Router se utiliza para cerrar sesión y cambiar de página.
 import { useRouter } from 'vue-router'
+import { Eye, Pencil } from 'lucide-vue-next'
 
 const router = useRouter()
 
@@ -42,7 +43,8 @@ const puedeVer = (modulo: string) => {
 /*
   Devuelve un texto entendible para el nivel
   de permiso de cada módulo.
-*/
+
+
 const nombrePermiso = (nivel: number) => {
 
   if (nivel === 3) {
@@ -55,6 +57,7 @@ const nombrePermiso = (nivel: number) => {
 
   return 'Desactivado'
 }
+  */
 
 /*
   Cuenta los módulos a los que puede acceder
@@ -136,15 +139,21 @@ const cerrarSesion = () => {
       -->
       <nav class="menu">
 
-        <RouterLink
+       <RouterLink
           v-if="puedeVer('sistemas')"
           to="/panel/sistemas"
         >
           <span>Sistemas</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.sistemas) }}
-          </small>
+          <Pencil
+            v-if="usuario.permisos.sistemas === 3"
+            :size="18"
+          />
+
+          <Eye
+            v-else-if="usuario.permisos.sistemas === 2"
+            :size="18"
+          />
         </RouterLink>
 
         <RouterLink
@@ -153,9 +162,15 @@ const cerrarSesion = () => {
         >
           <span>Usuarios</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.usuarios) }}
-          </small>
+          <Pencil
+            v-if="usuario.permisos.usuarios === 3"
+            :size="18"
+          />
+
+          <Eye
+            v-else-if="usuario.permisos.usuarios === 2"
+            :size="18"
+          />
         </RouterLink>
 
         <RouterLink
@@ -164,9 +179,15 @@ const cerrarSesion = () => {
         >
           <span>Roles</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.roles) }}
-          </small>
+          <Pencil
+            v-if="usuario.permisos.roles === 3"
+            :size="18"
+          />
+
+          <Eye
+            v-else-if="usuario.permisos.roles === 2"
+            :size="18"
+          />
         </RouterLink>
 
         <RouterLink
@@ -175,9 +196,15 @@ const cerrarSesion = () => {
         >
           <span>Historias de Usuario</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.historias) }}
-          </small>
+          <Pencil
+            v-if="usuario.permisos.historias === 3"
+            :size="18"
+          />
+
+          <Eye
+            v-else-if="usuario.permisos.historias === 2"
+            :size="18"
+          />
         </RouterLink>
 
       </nav>
