@@ -1,6 +1,5 @@
-
 <script setup lang="ts">
-
+import { Eye, Pencil } from 'lucide-vue-next'
 // ======================================================
 // 1. IMPORTACIONES
 // ======================================================
@@ -264,7 +263,18 @@ const cerrarSesion = (): void => {
           </div>
 
           <!-- Nivel de permiso -->
+          <Pencil
+              v-if="usuario?.permisos?.sistemas === 3"
+              class="permiso-icono"
+              :size="18"
+            />
 
+            <!-- Ojo para lectura -->
+            <Eye
+              v-else-if="usuario?.permisos?.sistemas === 2"
+              class="permiso-icono"
+              :size="18"
+            />
 
         </RouterLink>
 
@@ -291,7 +301,16 @@ const cerrarSesion = (): void => {
             <span>
               Usuarios
             </span>
-
+            <Pencil
+              v-if="usuario?.permisos?.usuarios === 3"
+              class="permiso-icono"
+              :size="18"
+            />
+            <Eye
+              v-else-if="usuario?.permisos?.usuarios === 2"
+              class="permiso-icono"
+              :size="18"
+            />
           </div>
 
 
@@ -324,7 +343,16 @@ const cerrarSesion = (): void => {
 
           </div>
 
-
+          <Pencil
+            v-if="usuario?.permisos?.roles === 3"
+            class="permiso-icono"
+            :size="18"
+          />
+          <Eye
+            v-else-if="usuario?.permisos?.roles === 2"
+            class="permiso-icono"
+            :size="18"
+          />
 
         </RouterLink>
 
@@ -354,7 +382,16 @@ const cerrarSesion = (): void => {
 
           </div>
 
-
+          <Pencil
+            v-if="usuario?.permisos?.historias === 3"
+            class="permiso-icono"
+            :size="18"
+          />
+          <Eye
+            v-else-if="usuario?.permisos?.historias === 2"
+            class="permiso-icono"
+            :size="18"
+          />
 
         </RouterLink>
 
@@ -880,6 +917,39 @@ const cerrarSesion = (): void => {
     height: 20px;
   }
 
+  .permiso-icono {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Alinea el nombre y el permiso en la misma fila */
+.menu a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Alinea el icono del módulo con su nombre */
+.menu-opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.menu-icono {
+  flex-shrink: 0;
+}
+
+/* Mantiene el ojo o lápiz a la derecha */
+.permiso-icono {
+  display: block;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 }
 
 </style>
+
