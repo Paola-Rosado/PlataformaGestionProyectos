@@ -1,4 +1,9 @@
+
 <script setup lang="ts">
+
+// ======================================================
+// 1. IMPORTACIONES
+// ======================================================
 
 // computed permite crear valores calculados y reactivos.
 import { computed } from 'vue'
@@ -6,44 +11,81 @@ import { computed } from 'vue'
 // Router se utiliza para cerrar sesión y cambiar de página.
 import { useRouter } from 'vue-router'
 
+// Importamos los iconos que representarán cada módulo.
+import {
+  MonitorCog,     // Sistemas
+  UsersRound,     // Usuarios
+  ShieldCheck,    // Roles
+  ClipboardList   // Historias de Usuario
+} from 'lucide-vue-next'
+
+// Instancia del router.
 const router = useRouter()
 
-/*
-  Obtiene del navegador los datos del usuario
-  que fueron guardados durante el Login.
-*/
+
+// ======================================================
+// 2. OBTENER INFORMACIÓN DEL USUARIO
+// ======================================================
+
+/**
+ * Obtiene del navegador los datos del usuario
+ * que fueron guardados durante el Login.
+ */
 const usuarioGuardado = localStorage.getItem('user')
 
-/*
-  Si existe un usuario, convierte el JSON nuevamente
-  en un objeto de JavaScript.
-*/
+/**
+ * Si existe un usuario, convierte el JSON nuevamente
+ * en un objeto de JavaScript.
+ *
+ * Si no existe, devuelve null.
+ */
 const usuario = usuarioGuardado
   ? JSON.parse(usuarioGuardado)
   : null
 
-/*
-  Comprueba si un módulo debe aparecer.
 
-  Si el permiso es:
-  1 = no aparece.
-  2 = aparece con lectura.
-  3 = aparece con escritura.
-*/
-const puedeVer = (modulo: string) => {
+// ======================================================
+// 3. VERIFICAR PERMISOS
+// ======================================================
 
+/**
+ * puedeVer()
+ *
+ * Comprueba si un módulo debe aparecer.
+ *
+ * Niveles:
+ * 1 = Desactivado, no aparece.
+ * 2 = Lectura, aparece.
+ * 3 = Escritura, aparece.
+ *
+ * Recibe el nombre del módulo.
+ */
+const puedeVer = (modulo: string): boolean => {
+
+  // Si no existe un usuario, no permite mostrar módulos.
   if (!usuario) {
     return false
   }
 
+  // Comprueba que el permiso sea mayor que 1.
   return usuario.permisos?.[modulo] > 1
 }
 
-/*
-  Devuelve un texto entendible para el nivel
-  de permiso de cada módulo.
-*/
-const nombrePermiso = (nivel: number) => {
+
+// ======================================================
+// 4. MOSTRAR NOMBRE DEL PERMISO
+// ======================================================
+
+/**
+ * nombrePermiso()
+ *
+ * Convierte el número del permiso en un texto.
+ *
+ * 3 = Escritura
+ * 2 = Lectura
+ * 1 = Desactivado
+ */
+const nombrePermiso = (nivel: number): string => {
 
   if (nivel === 3) {
     return 'Escritura'
@@ -56,44 +98,80 @@ const nombrePermiso = (nivel: number) => {
   return 'Desactivado'
 }
 
-/*
-  Cuenta los módulos a los que puede acceder
-  el usuario actualmente autenticado.
-*/
+
+// ======================================================
+// 5. CONTAR MÓDULOS DISPONIBLES
+// ======================================================
+
+/**
+ * cantidadModulos
+ *
+ * Cuenta los módulos a los que puede acceder
+ * el usuario actualmente autenticado.
+ *
+ * computed actualiza el resultado cuando cambian
+ * sus dependencias reactivas.
+ */
 const cantidadModulos = computed(() => {
 
+  // Si no existe un usuario, devuelve cero.
   if (!usuario) {
     return 0
   }
 
-  return Object.values(usuario.permisos)
+  // Obtiene todos los permisos del usuario.
+  return Object.values(usuario.permisos ?? {})
+
+    // Conserva únicamente los permisos mayores que 1.
     .filter((permiso) => Number(permiso) > 1)
+
+    // Cuenta los módulos disponibles.
     .length
 })
 
-/*
-  Cierra la sesión.
 
-  Elimina la información almacenada y
-  regresa al Login.
-*/
-const cerrarSesion = () => {
+// ======================================================
+// 6. CERRAR SESIÓN
+// ======================================================
 
+/**
+ * cerrarSesion()
+ *
+ * Elimina los datos de sesión guardados
+ * en el navegador.
+ *
+ * Después regresa al Login.
+ */
+const cerrarSesion = (): void => {
+
+  // Elimina la información del usuario.
   localStorage.removeItem('user')
+
+  // Elimina el rol almacenado, si existe.
   localStorage.removeItem('rolUsuario')
 
+  // Redirige al inicio de sesión.
   router.push('/')
 }
 
 </script>
 
+
 <template>
+
+  <!-- ==================================================
+       1. CONTENEDOR GENERAL DEL PANEL
+  ================================================== -->
 
   <div class="panel">
 
-    <!-- MENÚ LATERAL -->
+    <!-- ==================================================
+         2. MENÚ LATERAL
+    ================================================== -->
+
     <aside class="sidebar">
 
+      <!-- ENCABEZADO DEL MENÚ -->
       <div class="sidebar-header">
 
         <p class="marca">
@@ -106,7 +184,15 @@ const cerrarSesion = () => {
 
       </div>
 
-      <!-- Información del usuario -->
+
+      <!-- ==================================================
+           3. INFORMACIÓN DEL USUARIO
+      ================================================== -->
+
+      <!--
+        Solo se muestra cuando existe un usuario
+        con sesión iniciada.
+      -->
       <section
         v-if="usuario"
         class="usuario"
@@ -116,73 +202,173 @@ const cerrarSesion = () => {
           SESIÓN ACTUAL
         </p>
 
+        <!-- Nombre del usuario -->
         <strong>
           {{ usuario.nombre }}
         </strong>
 
+        <!-- Correo electrónico -->
         <span>
           {{ usuario.correo }}
         </span>
 
+        <!-- Rol del usuario -->
         <span class="rol">
           {{ usuario.rol }}
         </span>
 
       </section>
 
+
+      <!-- ==================================================
+           4. MENÚ DE NAVEGACIÓN CON ICONOS
+      ================================================== -->
+
       <!--
-        Los módulos solamente aparecen cuando
-        el permiso correspondiente es 2 o 3.
+        Los módulos aparecen únicamente cuando
+        el usuario tiene permiso de lectura
+        o escritura.
+
+        Cada módulo tiene:
+        - Un icono representativo.
+        - El nombre del módulo.
+        - El nivel de permiso.
       -->
+
       <nav class="menu">
+
+        <!-- ================================================
+             MÓDULO SISTEMAS
+        ================================================= -->
 
         <RouterLink
           v-if="puedeVer('sistemas')"
           to="/panel/sistemas"
         >
-          <span>Sistemas</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.sistemas) }}
-          </small>
+          <!-- Icono y nombre -->
+          <div class="menu-opcion">
+
+            <!-- Monitor con engranaje -->
+            <MonitorCog
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Sistemas
+            </span>
+
+          </div>
+
+          <!-- Nivel de permiso -->
+
+
         </RouterLink>
+
+
+        <!-- ================================================
+             MÓDULO USUARIOS
+        ================================================= -->
 
         <RouterLink
           v-if="puedeVer('usuarios')"
           to="/panel/usuarios"
         >
-          <span>Usuarios</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.usuarios) }}
-          </small>
+          <div class="menu-opcion">
+
+            <!-- Grupo de personas -->
+            <UsersRound
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Usuarios
+            </span>
+
+          </div>
+
+
+
         </RouterLink>
+
+
+        <!-- ================================================
+             MÓDULO ROLES
+        ================================================= -->
 
         <RouterLink
           v-if="puedeVer('roles')"
           to="/panel/roles"
         >
-          <span>Roles</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.roles) }}
-          </small>
+          <div class="menu-opcion">
+
+            <!-- Escudo de seguridad -->
+            <ShieldCheck
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Roles
+            </span>
+
+          </div>
+
+
+
         </RouterLink>
+
+
+        <!-- ================================================
+             MÓDULO HISTORIAS DE USUARIO
+        ================================================= -->
 
         <RouterLink
           v-if="puedeVer('historias')"
           to="/panel/historias"
         >
-          <span>Historias de Usuario</span>
 
-          <small>
-            {{ nombrePermiso(usuario.permisos.historias) }}
-          </small>
+          <div class="menu-opcion">
+
+            <!-- Portapapeles con lista -->
+            <ClipboardList
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Historias de Usuario
+            </span>
+
+          </div>
+
+
+
         </RouterLink>
 
       </nav>
 
-      <!-- Botón ubicado al final del menú -->
+
+      <!-- ==================================================
+           5. BOTÓN CERRAR SESIÓN
+      ================================================== -->
+
+      <!--
+        Se encuentra en la parte inferior
+        del menú lateral.
+      -->
       <div class="sidebar-footer">
 
         <button
@@ -196,9 +382,14 @@ const cerrarSesion = () => {
 
     </aside>
 
-    <!-- ÁREA DERECHA -->
+
+    <!-- ==================================================
+         6. ÁREA PRINCIPAL DEL SISTEMA
+    ================================================== -->
+
     <main class="contenido">
 
+      <!-- ENCABEZADO SUPERIOR -->
       <header class="encabezado">
 
         <div>
@@ -211,6 +402,7 @@ const cerrarSesion = () => {
             Panel principal
           </h1>
 
+          <!-- Mensaje de bienvenida -->
           <p v-if="usuario">
             Bienvenido, {{ usuario.nombre }}.
             Tienes acceso a {{ cantidadModulos }} módulo(s).
@@ -218,6 +410,7 @@ const cerrarSesion = () => {
 
         </div>
 
+        <!-- Rol mostrado en el encabezado -->
         <div
           v-if="usuario"
           class="rol-superior"
@@ -227,10 +420,23 @@ const cerrarSesion = () => {
 
       </header>
 
+
+      <!-- ==================================================
+           7. CONTENIDO DINÁMICO
+      ================================================== -->
+
       <!--
-        Aquí Vue muestra SistemasView, UsuariosView,
-        RolesView o HistoriasView según la ruta.
+        RouterView muestra el componente
+        correspondiente a la ruta seleccionada.
+
+        Por ejemplo:
+
+        /panel/sistemas  -> SistemasView
+        /panel/usuarios  -> UsuariosView
+        /panel/roles     -> RolesView
+        /panel/historias -> HistoriasView
       -->
+
       <section class="area-modulo">
 
         <RouterView />
@@ -243,7 +449,12 @@ const cerrarSesion = () => {
 
 </template>
 
+
 <style scoped>
+
+/* ======================================================
+   1. CONTENEDOR GENERAL
+====================================================== */
 
 .panel {
   width: 100%;
@@ -255,6 +466,11 @@ const cerrarSesion = () => {
 
   color: #222223;
 }
+
+
+/* ======================================================
+   2. MENÚ LATERAL
+====================================================== */
 
 .sidebar {
   width: 285px;
@@ -268,7 +484,14 @@ const cerrarSesion = () => {
   background: #222223;
 
   box-sizing: border-box;
+
+  flex-shrink: 0;
 }
+
+
+/* ======================================================
+   3. ENCABEZADO DEL MENÚ
+====================================================== */
 
 .sidebar-header {
   margin-bottom: 25px;
@@ -292,6 +515,11 @@ const cerrarSesion = () => {
 
   font-size: 21px;
 }
+
+
+/* ======================================================
+   4. TARJETA DEL USUARIO
+====================================================== */
 
 .usuario {
   display: flex;
@@ -350,6 +578,11 @@ const cerrarSesion = () => {
   font-weight: 600;
 }
 
+
+/* ======================================================
+   5. MENÚ DE NAVEGACIÓN
+====================================================== */
+
 .menu {
   display: flex;
   flex-direction: column;
@@ -357,6 +590,7 @@ const cerrarSesion = () => {
   gap: 8px;
 }
 
+/* Estilo general de los enlaces */
 .menu a {
   display: flex;
   justify-content: space-between;
@@ -364,7 +598,7 @@ const cerrarSesion = () => {
 
   gap: 10px;
 
-  padding: 13px 14px;
+  padding: 13px 12px;
 
   border-radius: 8px;
 
@@ -372,26 +606,109 @@ const cerrarSesion = () => {
 
   text-decoration: none;
 
-  transition: 0.2s;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
+/* Al pasar el cursor */
 .menu a:hover {
   background: #333335;
 }
 
+/* Módulo seleccionado */
 .menu a.router-link-active {
   background: #B62A2D;
 }
 
+/* Texto del permiso */
 .menu a small {
   color: #E6A8A8;
 
   font-size: 10px;
+
+  flex-shrink: 0;
 }
 
+/* Permiso del módulo seleccionado */
 .menu a.router-link-active small {
   color: #FEFEFE;
 }
+
+
+/* ======================================================
+   6. ICONOS PERSONALIZADOS DEL MENÚ
+====================================================== */
+
+/*
+  Agrupa el icono y el nombre del módulo.
+
+  display: flex los coloca horizontalmente.
+  gap establece la separación.
+*/
+.menu-opcion {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  min-width: 0;
+}
+
+/*
+  Estilo general de los cuatro iconos.
+*/
+.menu-icono {
+  flex-shrink: 0;
+
+  color: #E6A8A8;
+
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+/*
+  Al pasar el cursor sobre el módulo,
+  el icono se vuelve blanco y crece ligeramente.
+*/
+.menu a:hover .menu-icono {
+  color: #FFFFFF;
+
+  transform: scale(1.1);
+}
+
+/*
+  Cuando un módulo está seleccionado,
+  su icono permanece blanco.
+*/
+.menu a.router-link-active .menu-icono {
+  color: #FFFFFF;
+}
+
+/*
+  Texto del nombre del módulo.
+*/
+.menu-opcion span {
+  color: #FEFEFE;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  line-height: 1.3;
+}
+
+/*
+  Resalta el nombre del módulo activo.
+*/
+.menu a.router-link-active .menu-opcion span {
+  font-weight: 700;
+}
+
+
+/* ======================================================
+   7. BOTÓN CERRAR SESIÓN
+====================================================== */
 
 .sidebar-footer {
   margin-top: auto;
@@ -423,11 +740,21 @@ const cerrarSesion = () => {
   background: #D5575E;
 }
 
+
+/* ======================================================
+   8. ÁREA PRINCIPAL
+====================================================== */
+
 .contenido {
   flex: 1;
 
   min-width: 0;
 }
+
+
+/* ======================================================
+   9. ENCABEZADO SUPERIOR
+====================================================== */
 
 .encabezado {
   display: flex;
@@ -470,6 +797,11 @@ const cerrarSesion = () => {
   font-size: 14px;
 }
 
+
+/* ======================================================
+   10. ROL DEL USUARIO
+====================================================== */
+
 .rol-superior {
   padding: 9px 14px;
 
@@ -483,13 +815,20 @@ const cerrarSesion = () => {
   font-weight: 700;
 }
 
+
+/* ======================================================
+   11. CONTENIDO DE LOS MÓDULOS
+====================================================== */
+
 .area-modulo {
   padding: 35px 40px;
 }
 
-/*
-  RESPONSIVE DEL PANEL
-*/
+
+/* ======================================================
+   12. RESPONSIVE PARA TABLETAS
+====================================================== */
+
 @media (max-width: 800px) {
 
   .panel {
@@ -515,6 +854,11 @@ const cerrarSesion = () => {
 
 }
 
+
+/* ======================================================
+   13. RESPONSIVE PARA CELULARES
+====================================================== */
+
 @media (max-width: 500px) {
 
   .encabezado {
@@ -524,8 +868,16 @@ const cerrarSesion = () => {
 
   .menu a {
     width: 100%;
-
     box-sizing: border-box;
+  }
+
+  .menu-opcion {
+    gap: 10px;
+  }
+
+  .menu-icono {
+    width: 20px;
+    height: 20px;
   }
 
 }
