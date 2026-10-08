@@ -89,7 +89,7 @@ const router = createRouter({
 })
 
 ///Bloqueo de permisos////
-router.beforeEach((to, from, next)=> {
+router.beforeEach((to, _from, next) => {
   // Ignorar validaciones si va directo al login
   if(to.path === '/'){
     return next();
