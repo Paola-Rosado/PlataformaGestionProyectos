@@ -22,6 +22,8 @@ import { ref } from 'vue'
 import type { Sistema } from '../interfaces/Sistema'
 import type { Metodologias } from '../interfaces/Metodologias'
 import { MonitorCog, Eye, Pencil, Trash2 } from 'lucide-vue-next'
+import { SistemaActivo } from '../router/index'
+
 /*
 ==========================================================
 1. DEFINICIÓN DE LOS DATOS DE UN SISTEMA
@@ -54,10 +56,48 @@ Cuando no existen registros, la tabla mostrará:
 Por ahora, los registros se almacenan en memoria.
 */
 
-const sistemas = ref<Sistema[]>([])
+const sistemas = ref<Sistema[]>([
 // Guarda el mensaje que se mostrará en pantalla.
-const mensaje = ref('')
 
+  {
+    id: 1,
+    nombre: 'Sistema de Gestión Escolar',
+    descripcion: 'Plataforma para el control de calificaciones y asistencias de alumnos.',
+    correoResponsable: 'Rubyl@gmail.com',
+    nombreResponsable: 'Ruby Sosa',
+    fechaInicio: '2026-01-10',
+    fechaFinalizacion: '2026-10-30',
+    metodologia: 'Scrum',
+    estatus: 'En desarrollo',
+    fechaActualizacion: '10/01/2026 10:00'
+  },
+  {
+    id: 2,
+    nombre: 'Sistema de clinica dental',
+    descripcion: 'Control de clinica dental.',
+    correoResponsable: 'Paola@gmail.com',
+    nombreResponsable: 'Paola Pech',
+    fechaInicio: '2026-10-15',
+    fechaFinalizacion: '2026-10-30',
+    metodologia: 'Kanban',
+    estatus: 'Planeación',
+    fechaActualizacion: '01/02/2026 09:30'
+  },
+   {
+    id: 3,
+    nombre: 'Sistema de veterinaria',
+    descripcion: 'Sistema para clinica veterinaria.',
+    correoResponsable: 'gabriela@gmail.com',
+    nombreResponsable: 'Gabriela Cuellar',
+    fechaInicio: '2026-10-10',
+    fechaFinalizacion: '2026-10-30',
+    metodologia: 'Espiral',
+    estatus: 'En pruebas',
+    fechaActualizacion: '01/02/2026 09:30'
+  }
+])
+
+const mensaje = ref('')
 /*
 ==========================================================
 3. CONTROL DE LAS VISTAS
@@ -85,7 +125,37 @@ const idEnEdicion = ref<number | null>(null)
 const sistemaSeleccionado = ref<Sistema | null>(null)
 // Controla la confirmación para eliminar.
 const idPorEliminar = ref<number | null>(null)
+// Controla el sistema que el usuario ha seleccionado con el nuevo botón
+const sistemaSeleccionadoTabla = ref<Sistema | null>(null)
+// Guarda el ID del sistema actualmente seleccionado (solo uno a la vez)
+const idSistemaSeleccionado = ref<number | null>(null)
+// Función que se ejecuta al seleccionar un sistema
+function seleccionarUnicoSistema(sistema: Sistema) {
+  if (idSistemaSeleccionado.value === sistema.id) {
+    // Si ya estaba seleccionado y vuelve a hacer clic, se deselecciona
+    idSistemaSeleccionado.value = null
+    mensaje.value = ''
+  } else {
+    // Selecciona el nuevo sistema y muestra la notificación con su nombre
+    idSistemaSeleccionado.value = sistema.id
+    mostrarNotificacion(`Has seleccionado el sistema: ${sistema.nombre}`)
+  }
+}
+
+const { sistemaSeleccionadoGlobal, seleccionarSistema } = SistemaActivo()
+
+// Función que se ejecuta al marcar el checkbox en la tabla
+function manejarSeleccion(sistema: Sistema) {
+  if (sistemaSeleccionadoGlobal.value?.id === sistema.id) {
+    seleccionarSistema(null) // Deselecciona si ya estaba marcado
+    mensaje.value = ''
+  } else {
+    seleccionarSistema(sistema) // Guarda el sistema globalmente
+    mostrarNotificacion(`Sistema seleccionado: ${sistema.nombre}`)
+  }
+}
   
+
 /*
 ==========================================================
 4. DATOS DEL FORMULARIO
@@ -103,6 +173,8 @@ const formulario = ref({
   descripcion: '',
   correoResponsable: '',
   nombreResponsable: '',
+  apellidopaterno: '',
+  apellidomaterno: '',
   fechaInicio: '',
   fechaFinalizacion: '',
   metodologia: '',
@@ -164,11 +236,19 @@ function modificarSistema(sistema: Sistema) {
   
   fechaActualizacion.value = sistema.fechaActualizacion
 
+  // Separar el nombre completo del responsable para dividirlo en nombre y apellidos si fuera necesario
+  const partesNombre = sistema.nombreResponsable.trim().split(' ')
+  const nombreR = partesNombre[0] || ''
+  const apellidoP = partesNombre[1] || ''
+  const apellidoM = partesNombre.slice(2).join(' ') || ''
+
   formulario.value = {
     nombre: sistema.nombre,
     descripcion: sistema.descripcion,
     correoResponsable: sistema.correoResponsable,
     nombreResponsable: sistema.nombreResponsable,
+    apellidopaterno: apellidoP,
+    apellidomaterno: apellidoM,
     fechaInicio: sistema.fechaInicio,
     fechaFinalizacion: sistema.fechaFinalizacion,
     metodologia: sistema.metodologia,
@@ -207,6 +287,8 @@ function limpiarFormulario() {
     descripcion: '',
     correoResponsable: '',
     nombreResponsable: '',
+    apellidopaterno: '',
+    apellidomaterno: '',
     fechaInicio: '',
     fechaFinalizacion: '',
     metodologia: '',
@@ -255,6 +337,7 @@ function guardarSistema() {
     !formulario.value.descripcion.trim() ||
     !formulario.value.correoResponsable.trim() ||
     !formulario.value.nombreResponsable.trim() ||
+    !formulario.value.apellidopaterno.trim() ||
     !formulario.value.fechaInicio ||
     !formulario.value.fechaFinalizacion ||
     !formulario.value.metodologia ||
@@ -301,13 +384,15 @@ function guardarSistema() {
     hour: '2-digit',
     minute: '2-digit'
   })
+ //Forma una cadena del nombre y el apellido paterno y materno
+  const nombreCompletoResponsable = `${formulario.value.nombreResponsable.trim()} ${formulario.value.apellidopaterno.trim()}${formulario.value.apellidomaterno ? ' ' + formulario.value.apellidomaterno.trim() : ''}`
 
   const datosSistema: Sistema = {
     id: idEnEdicion.value ?? Date.now(),
     nombre: formulario.value.nombre.trim(),
     descripcion: formulario.value.descripcion.trim(),
     correoResponsable: formulario.value.correoResponsable.trim(),
-    nombreResponsable: formulario.value.nombreResponsable.trim(),
+    nombreResponsable: nombreCompletoResponsable,
     fechaInicio: formulario.value.fechaInicio,
     fechaFinalizacion: formulario.value.fechaFinalizacion,
     metodologia: formulario.value.metodologia,
@@ -451,6 +536,7 @@ function guardarSistema() {
               <tr>
 
                 <th>ID</th>
+                <th>Seleccionar</th>
                 <th>Nombre</th>
                 <th>Descripción</th>
                 <th>Fecha de actualización</th>
@@ -487,7 +573,16 @@ function guardarSistema() {
                 <td>
                   {{ sistema.id }}
                 </td>
-
+                 
+                <td>
+                  <input
+                    type="checkbox"
+                    class="check-sistema"
+                    :checked="sistemaSeleccionadoGlobal?.id === sistema.id"
+                    @change="manejarSeleccion(sistema)"
+                    aria-label="Seleccionar sistema"
+                  />
+                </td>
                 <td>
                   {{ sistema.nombre }}
                 </td>
@@ -568,7 +663,7 @@ function guardarSistema() {
               <tr v-if="sistemas.length === 0">
 
                 <td
-                  colspan="8"
+                  colspan="9"
                   class="mensaje-vacio"
                 >
 
@@ -696,46 +791,77 @@ function guardarSistema() {
 
           </div>
 
-          <div class="fila-campos">
-          <!-- CORREO DEL RESPONSABLE -->
-
-          <div class="campo">
-
-            <label for="correoResponsable">
-              Correo del responsable
-            </label>
-
-            <input
-              id="correoResponsable"
-              v-model="formulario.correoResponsable"
-              type="email"
-              placeholder="correo@ejemplo.com"
-              required
-            />
-
-          </div>
-
 
           <!-- NOMBRE DEL RESPONSABLE -->
 
-          <div class="campo">
+       <div class="seccion-formulario-sub">
+            <h4 class="subtitulo-seccion">DATOS DEL RESPONSABLE</h4>
+            <hr class="divisor-seccion" />
 
-            <label for="nombreResponsable">
-              Nombre del responsable
-            </label>
+            <div class="fila-campos">
+              <!-- CORREO ELECTRÓNICO -->
+              <div class="campo">
+                <label for="correoResponsable">
+                  Correo Electrónico
+                </label>
+                <input
+                  id="correoResponsable"
+                  v-model="formulario.correoResponsable"
+                  type="email"
+                  placeholder="ejemplo@dominio.com"
+                  required
+                />
+              </div>
 
-            <input
-              id="nombreResponsable"
-              v-model="formulario.nombreResponsable"
-              type="text"
-              placeholder="Escribe el nombre del responsable"
-              required
-            />
+              <!-- NOMBRE -->
+              <div class="campo">
+                <label for="nombreResponsable">
+                  Nombre
+                </label>
+                <input
+                  id="nombreResponsable"
+                  v-model="formulario.nombreResponsable"
+                  type="text"
+                  placeholder="Nombre(s)"
+                  required
+                />
+              </div>
+            </div>
 
+            <div class="fila-campos">
+              <!-- APELLIDO PATERNO -->
+              <div class="campo">
+                <label for="apellidoPaterno">
+                  Apellido Paterno
+                </label>
+                <input
+                  id="apellidoPaterno"
+                  v-model="formulario.apellidopaterno"
+                  type="text"
+                  placeholder="Primer apellido"
+                  required
+                />
+              </div>
+
+              <!-- APELLIDO MATERNO -->
+              <div class="campo">
+                <label for="apellidoMaterno">
+                  Apellido Materno
+                </label>
+                <input
+                  id="apellidoMaterno"
+                  v-model="formulario.apellidomaterno"
+                  type="text"
+                  placeholder="Segundo apellido (opcional)"
+                />
+              </div>
+            </div>
           </div>
 
-          </div>
+      
           <!-- FECHAS DEL PROYECTO -->
+           <hr class="divisor-seccion" />
+           <h4 class="subtitulo-seccion">FECHAS DEL PROYECTO</h4>
 
           <div class="fila-campos">
 
@@ -1232,6 +1358,7 @@ header p:last-child {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: auto;
 }
 
 .tabla-sistemas th {
@@ -1245,7 +1372,7 @@ header p:last-child {
 }
 
 .tabla-sistemas td {
-  padding: 15px;
+  padding: 5px;
   color: #555555;
   border-bottom: 1px solid #eeeeee;
   vertical-align: middle;
@@ -1560,6 +1687,14 @@ Permite adaptar el contenido a pantallas pequeñas.
 .btn-eliminar:hover {
   background: #FCE8E8;
   border-color: #F2C6C6;
+}
+
+.check-sistema {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #B62A2D; /* Cambia el color del check al color principal de tu tema */
+  vertical-align: middle;
 }
 
 /* Accesibilidad del teclado */
