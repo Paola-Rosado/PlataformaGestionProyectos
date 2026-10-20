@@ -11,8 +11,8 @@ import LoginView from '../views/LoginView.vue'
 import AdminPanel from '../views/AdminPanel.vue'
 
 // Vistas correspondientes a los cuatro módulos.
-import SistemasView from '../views/SistemasView.vue'
-import UsuariosView from '../views/UsuariosView.vue'
+import SystemsView from '../views/SystemsView.vue'
+import UsuariosView from '../views/UsersView.vue'
 import RolesView from '../views/RolesView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
 
@@ -85,7 +85,7 @@ const router = createRouter({
         {
           path: 'sistemas',
           name: 'sistemas',
-          component: SistemasView,
+          component: SystemsView,
 
           meta: {
             requiresAuth: true,
