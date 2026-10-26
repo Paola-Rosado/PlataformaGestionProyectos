@@ -16,6 +16,23 @@ import UsuariosView from '../views/UsersView.vue'
 import RolesView from '../views/RolesView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
 
+import { ref } from 'vue'
+import type { Sistema } from '../interfaces/Sistema'
+
+// Al declarar estas variables fuera de la función, actúan como un estado global (compartido)
+const sistemaSeleccionadoGlobal = ref<Sistema | null>(null)
+
+export function SistemaActivo() {
+  function seleccionarSistema(sistema: Sistema | null) {
+    sistemaSeleccionadoGlobal.value = sistema
+  }
+
+  return {
+    sistemaSeleccionadoGlobal,
+    seleccionarSistema
+  }
+}
+
 /*
   Nombre permitido para los módulos.
 
