@@ -18,10 +18,13 @@ Se utiliza Vue 3 con Composition API y TypeScript.
 
 // ref permite crear variables reactivas.
 // Cuando cambian, Vue actualiza automáticamente la vista.
-import { ref } from 'vue'
+import { ref, type Component } from 'vue'
 import type { Sistema } from '../interfaces/Sistema'
 import type { Metodologias } from '../interfaces/Metodologias'
-import { MonitorCog, Eye, Pencil, Trash2 } from 'lucide-vue-next'
+import {
+  MonitorCog, Eye, Pencil, Trash2,
+  CalendarDays, Code, FlaskConical, CircleCheck
+} from 'lucide-vue-next'
 import { SistemaActivo } from '../router/index'
 
 /*
@@ -98,6 +101,27 @@ const sistemas = ref<Sistema[]>([
 ])
 
 const mensaje = ref('')
+
+/*
+==========================================================
+ICONOS DE ESTATUS
+==========================================================
+
+Cada estatus se representa con un icono y un color.
+Esta misma lista alimenta:
+1. La leyenda (codificación) que aparece sobre la tabla.
+2. El icono que aparece en la columna Estatus.
+*/
+const estatusConfig: Record<string, { icono: Component; clase: string }> = {
+  'Planeación': { icono: CalendarDays, clase: 'estatus-planeacion' },
+  'En desarrollo': { icono: Code, clase: 'estatus-desarrollo' },
+  'En pruebas': { icono: FlaskConical, clase: 'estatus-pruebas' },
+  'Finalizado': { icono: CircleCheck, clase: 'estatus-finalizado' }
+}
+
+const listaEstatus = Object.entries(estatusConfig).map(
+  ([nombre, config]) => ({ nombre, ...config })
+)
 /*
 ==========================================================
 3. CONTROL DE LAS VISTAS
@@ -525,6 +549,22 @@ function guardarSistema() {
              TABLA DE SISTEMAS
              ================================================ -->
 
+        <!-- LEYENDA DE ESTATUS (alineada al lado del botón) -->
+        <div class="leyenda-estatus" aria-label="Codificación de estatus">
+          <span class="leyenda-titulo">Estatus:</span>
+
+          <span
+            v-for="item in listaEstatus"
+            :key="item.nombre"
+            class="leyenda-item"
+          >
+            <span class="estatus-icono estatus-icono-sm" :class="item.clase">
+              <component :is="item.icono" :size="14" />
+            </span>
+            {{ item.nombre }}
+          </span>
+        </div>
+
         <div class="contenedor-tabla">
 
           <table class="tabla-sistemas">
@@ -601,7 +641,23 @@ function guardarSistema() {
 
                 <td>
 
-                  <span class="estatus">
+                  <!-- Icono del estatus (el texto aparece al pasar el cursor) -->
+                  <span
+                    v-if="estatusConfig[sistema.estatus]"
+                    class="estatus-icono"
+                    :class="estatusConfig[sistema.estatus].clase"
+                    :title="sistema.estatus"
+                    role="img"
+                    :aria-label="sistema.estatus"
+                  >
+                    <component
+                      :is="estatusConfig[sistema.estatus].icono"
+                      :size="18"
+                    />
+                  </span>
+
+                  <!-- Respaldo por si llega un estatus desconocido -->
+                  <span v-else class="estatus">
                     {{ sistema.estatus }}
                   </span>
 
@@ -1976,6 +2032,56 @@ Permite adaptar el contenido a pantallas pequeñas.
 
   .pie-modal {
     padding: 16px 18px;
+  }
+}
+
+/* =========================================
+   ICONOS DE ESTATUS Y LEYENDA
+   ========================================= */
+
+/* Leyenda sobre la tabla, del mismo lado que el botón Agregar */
+.leyenda-estatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 18px;
+  margin-bottom: 16px;
+  color: #666666;
+  font-size: 12px;
+}
+
+.leyenda-titulo {
+  font-weight: 700;
+  color: #222223;
+}
+
+.leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Círculo que contiene el icono */
+.estatus-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: help;
+}
+
+.estatus-icono-sm {
+  width: 24px;
+  height: 24px;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .leyenda-estatus {
+    justify-content: flex-start;
   }
 }
 
