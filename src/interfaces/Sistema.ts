@@ -9,4 +9,6 @@ export interface Sistema {
   metodologia: string
   estatus: string
   fechaActualizacion: string
+  // false = sistema desactivado (no se elimina, solo se desactiva).
+  activo: boolean
 }

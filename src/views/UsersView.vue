@@ -4,35 +4,70 @@
 MÓDULO DE USUARIOS
 ==========================================================
 
-Esta vista permite:
+Esta vista permite, para el SISTEMA SELECCIONADO:
 
-1. Consultar los usuarios registrados.
+1. Consultar sus usuarios.
 2. Registrar un usuario nuevo (formulario).
-3. Activar o desactivar un usuario.
-4. Asignar un rol a un usuario (ventana modal).
+3. Editar un usuario.
+4. Desactivar o activar un usuario.
 
-El nombre de usuario es el correo electrónico.
-El número (No.) es consecutivo.
+Reglas:
+- Si no hay un sistema seleccionado, no se muestran usuarios.
+- El rol se elige en un combo que se llena con los roles
+  de la metodología del sistema (Scrum, Kanban, etc.).
+- El usuario nuevo se registra como activo por defecto.
+- El nombre de usuario es el correo electrónico.
 */
 
-import { ref } from 'vue'
-import { Users, UserCog } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { UsersRound, Pencil } from 'lucide-vue-next'
 import { SistemaActivo } from '../router/index'
-import { useAccesos } from '../composables/UseAccesos.ts'
-import type { Usuario } from '../interfaces/Usuario.ts'
+import { useAccesos } from '../composables/UseAccesos'
+import { useSistemas } from '../composables/UseSistemas'
+import type { Usuario } from '../interfaces/Usuario'
 
-const { sistemaSeleccionadoGlobal } = SistemaActivo()
+const router = useRouter()
+
+const { sistemaSeleccionadoGlobal, seleccionarSistema } = SistemaActivo()
+const { aplicarSistemaPorDefecto } = useSistemas()
+
+// Si entran directo a Usuarios, también se aplica el sistema por defecto.
+aplicarSistemaPorDefecto(sistemaSeleccionadoGlobal.value, seleccionarSistema)
 
 const {
-  usuarios,
-  roles,
+  rolesDeMetodologia,
+  usuariosDeSistema,
   nombreCompleto,
-  nombreRol,
   correoExiste,
   agregarUsuario,
-  alternarActivo,
-  asignarRol
+  actualizarUsuario,
+  alternarActivo
 } = useAccesos()
+
+/*
+==========================================================
+DATOS DEL SISTEMA SELECCIONADO
+==========================================================
+*/
+
+// Usuarios del sistema seleccionado.
+const usuariosDelSistema = computed(() =>
+  sistemaSeleccionadoGlobal.value
+    ? usuariosDeSistema(sistemaSeleccionadoGlobal.value.id)
+    : []
+)
+
+// Roles que dependen de la metodología del sistema.
+const rolesDisponibles = computed(() =>
+  sistemaSeleccionadoGlobal.value
+    ? rolesDeMetodologia(sistemaSeleccionadoGlobal.value.metodologia)
+    : []
+)
+
+function irASistemas() {
+  router.push('/panel/sistemas')
+}
 
 /*
 ==========================================================
@@ -52,17 +87,32 @@ function mostrarNotificacion(
 
 /*
 ==========================================================
-FORMULARIO DE REGISTRO
+FORMULARIO (REGISTRAR / EDITAR)
 ==========================================================
 false = tabla de usuarios | true = formulario
 */
 const mostrarFormulario = ref(false)
 
+// null = registrando un usuario nuevo | número = editando ese usuario.
+const idEnEdicion = ref<number | null>(null)
+
 const formulario = ref({
   correo: '',
   nombre: '',
   apellidoPaterno: '',
-  apellidoMaterno: ''
+  apellidoMaterno: '',
+  rol: '',
+  activo: true
+})
+
+// Opciones del combo: los roles de la metodología. Si el usuario que se
+// edita tiene un rol que ya no pertenece a la metodología, se conserva
+// como opción para no perderlo sin querer.
+const opcionesRol = computed(() => {
+  const rol = formulario.value.rol
+  return rol && !rolesDisponibles.value.includes(rol)
+    ? [...rolesDisponibles.value, rol]
+    : rolesDisponibles.value
 })
 
 function limpiarFormulario() {
@@ -70,30 +120,52 @@ function limpiarFormulario() {
     correo: '',
     nombre: '',
     apellidoPaterno: '',
-    apellidoMaterno: ''
+    apellidoMaterno: '',
+    rol: '',
+    activo: true // Por defecto el usuario nuevo está activo.
   }
 }
 
 function abrirFormulario() {
   mensaje.value = ''
+  idEnEdicion.value = null
   limpiarFormulario()
   mostrarFormulario.value = true
 }
 
-function cancelarRegistro() {
+function editarUsuario(usuario: Usuario) {
+  mensaje.value = ''
+  idEnEdicion.value = usuario.id
+  formulario.value = {
+    correo: usuario.correo,
+    nombre: usuario.nombre,
+    apellidoPaterno: usuario.apellidoPaterno,
+    apellidoMaterno: usuario.apellidoMaterno,
+    rol: usuario.rol,
+    activo: usuario.activo
+  }
+  mostrarFormulario.value = true
+}
+
+function cancelarFormulario() {
   limpiarFormulario()
+  idEnEdicion.value = null
   mostrarFormulario.value = false
   mensaje.value = ''
 }
 
 function guardarUsuario() {
+  const sistema = sistemaSeleccionadoGlobal.value
+  if (!sistema) return
+
   const correo = formulario.value.correo.trim()
   const nombre = formulario.value.nombre.trim()
   const apellidoPaterno = formulario.value.apellidoPaterno.trim()
   const apellidoMaterno = formulario.value.apellidoMaterno.trim()
+  const rol = formulario.value.rol
 
   // El apellido materno es opcional.
-  if (!correo || !nombre || !apellidoPaterno) {
+  if (!correo || !nombre || !apellidoPaterno || !rol) {
     mostrarNotificacion('Por favor, completa todos los campos obligatorios.', 'error')
     return
   }
@@ -105,17 +177,32 @@ function guardarUsuario() {
     return
   }
 
-  // El correo es el nombre de usuario, por lo que no puede repetirse.
-  if (correoExiste(correo)) {
-    mostrarNotificacion('Ya existe un usuario con ese correo electrónico.', 'error')
+  // El correo es el nombre de usuario: no puede repetirse en el sistema.
+  if (correoExiste(sistema.id, correo, idEnEdicion.value ?? undefined)) {
+    mostrarNotificacion('Ya existe un usuario con ese correo en este sistema.', 'error')
     return
   }
 
-  agregarUsuario({ correo, nombre, apellidoPaterno, apellidoMaterno })
+  const datos = {
+    correo,
+    nombre,
+    apellidoPaterno,
+    apellidoMaterno,
+    rol,
+    activo: formulario.value.activo
+  }
+
+  if (idEnEdicion.value !== null) {
+    actualizarUsuario(idEnEdicion.value, datos)
+    mostrarNotificacion('Usuario modificado correctamente.')
+  } else {
+    agregarUsuario({ sistemaId: sistema.id, ...datos })
+    mostrarNotificacion('Usuario registrado correctamente.')
+  }
 
   limpiarFormulario()
+  idEnEdicion.value = null
   mostrarFormulario.value = false
-  mostrarNotificacion('Usuario registrado correctamente.')
 }
 
 /*
@@ -132,45 +219,6 @@ function cambiarEstado(usuario: Usuario) {
       : `Usuario ${usuario.correo} desactivado.`
   )
 }
-
-/*
-==========================================================
-ASIGNAR ROL (MODAL)
-==========================================================
-Muestra el usuario seleccionado y un combo con los roles.
-*/
-const usuarioParaRol = ref<Usuario | null>(null)
-const rolSeleccionado = ref<number | ''>('')
-const errorRol = ref('')
-
-function abrirAsignarRol(usuario: Usuario) {
-  mensaje.value = ''
-  errorRol.value = ''
-  usuarioParaRol.value = usuario
-  // Si ya tiene rol, el combo inicia en ese rol.
-  rolSeleccionado.value = usuario.rolId ?? ''
-}
-
-function cerrarAsignarRol() {
-  usuarioParaRol.value = null
-  errorRol.value = ''
-}
-
-function guardarRol() {
-  if (!usuarioParaRol.value) return
-
-  if (rolSeleccionado.value === '') {
-    errorRol.value = 'Selecciona un rol.'
-    return
-  }
-
-  asignarRol(usuarioParaRol.value.id, rolSeleccionado.value)
-
-  mostrarNotificacion(
-    `Rol "${nombreRol(rolSeleccionado.value)}" asignado a ${nombreCompleto(usuarioParaRol.value)}.`
-  )
-  cerrarAsignarRol()
-}
 </script>
 
 <template>
@@ -183,7 +231,7 @@ function guardarRol() {
           <p class="etiqueta">MÓDULO SELECCIONADO</p>
 
           <h2 class="titulo-modulo">
-            <Users :size="28" />
+            <UsersRound :size="28" />
             <span>Usuarios</span>
           </h2>
         </div>
@@ -198,22 +246,35 @@ function guardarRol() {
         </div>
       </div>
 
-      <p>Administración de los usuarios del sistema.</p>
+      <p>Administración de los usuarios del sistema seleccionado.</p>
     </header>
 
     <div class="tarjeta">
 
       <!-- ==================================================
+           SIN SISTEMA SELECCIONADO
+           ================================================== -->
+      <div v-if="!sistemaSeleccionadoGlobal" class="estado-vacio sin-sistema">
+        <h4>Selecciona un sistema para ver sus usuarios</h4>
+        <p>
+          Los usuarios y sus roles dependen del sistema y de su metodología.
+        </p>
+        <button type="button" class="btn-agregar" @click="irASistemas">
+          Ir a Sistemas
+        </button>
+      </div>
+
+      <!-- ==================================================
            VISTA 1: LISTADO DE USUARIOS
            ================================================== -->
-      <div v-if="!mostrarFormulario">
+      <div v-else-if="!mostrarFormulario">
 
         <div class="encabezado-tabla">
           <div>
             <h3>Listado de usuarios</h3>
             <p>
-              Consulta y administra los usuarios
-              que se encuentran registrados.
+              Consulta y administra los usuarios del sistema
+              (metodología: {{ sistemaSeleccionadoGlobal.metodologia }}).
             </p>
           </div>
 
@@ -251,46 +312,46 @@ function guardarRol() {
             <thead>
               <tr>
                 <th>No.</th>
-                <th>Usuario</th>
+                <th>Correo</th>
                 <th>Nombre</th>
-                <th>Apellido paterno</th>
-                <th>Apellido materno</th>
                 <th>Rol</th>
-                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
 
             <tbody>
-              <tr v-for="usuario in usuarios" :key="usuario.id">
-                <td>{{ usuario.id }}</td>
-                <td>{{ usuario.correo }}</td>
-                <td>{{ usuario.nombre }}</td>
-                <td>{{ usuario.apellidoPaterno }}</td>
-                <td>{{ usuario.apellidoMaterno || '—' }}</td>
+              <tr
+                v-for="(usuario, indice) in usuariosDelSistema"
+                :key="usuario.id"
+                :class="{ 'fila-inactiva': !usuario.activo }"
+              >
+                <!-- Número consecutivo dentro del sistema -->
+                <td>{{ indice + 1 }}</td>
 
                 <td>
-                  <span
-                    class="rol-etiqueta"
-                    :class="{ 'sin-rol': usuario.rolId === null }"
-                  >
-                    {{ nombreRol(usuario.rolId) }}
-                  </span>
+                  {{ usuario.correo }}
+                  <span v-if="!usuario.activo" class="chip-inactivo">Inactivo</span>
                 </td>
 
-                <td>
-                  <span
-                    class="estado"
-                    :class="usuario.activo ? 'estado-activo' : 'estado-inactivo'"
-                  >
-                    {{ usuario.activo ? 'Activo' : 'Inactivo' }}
-                  </span>
-                </td>
+                <td>{{ nombreCompleto(usuario) }}</td>
+
+                <td>{{ usuario.rol }}</td>
 
                 <td>
                   <div class="acciones-tabla">
 
-                    <!-- ACTIVAR / DESACTIVAR (interruptor) -->
+                    <!-- EDITAR -->
+                    <button
+                      type="button"
+                      class="btn-icono btn-editar"
+                      title="Editar usuario"
+                      aria-label="Editar usuario"
+                      @click="editarUsuario(usuario)"
+                    >
+                      <Pencil :size="18" />
+                    </button>
+
+                    <!-- ACTIVAR / DESACTIVAR (interruptor ON / OFF) -->
                     <button
                       type="button"
                       class="switch"
@@ -302,28 +363,16 @@ function guardarRol() {
                       @click="cambiarEstado(usuario)"
                     ></button>
 
-                    <!-- ASIGNAR ROL -->
-                    <button
-                      type="button"
-                      class="btn-icono btn-rol"
-                      title="Asignar rol"
-                      aria-label="Asignar rol"
-                      @click="abrirAsignarRol(usuario)"
-                    >
-                      <UserCog :size="18" />
-                    </button>
-
                   </div>
                 </td>
               </tr>
 
-              <!-- MENSAJE CUANDO NO HAY USUARIOS -->
-              <tr v-if="usuarios.length === 0">
-                <td colspan="8" class="mensaje-vacio">
+              <!-- MENSAJE CUANDO EL SISTEMA NO TIENE USUARIOS -->
+              <tr v-if="usuariosDelSistema.length === 0">
+                <td colspan="5" class="mensaje-vacio">
                   <div class="estado-vacio">
-                    <h4>No existen usuarios registrados</h4>
-                    <p>Actualmente no hay usuarios dados de alta.</p>
-                    <p>Presiona "Agregar usuario" para registrar uno nuevo.</p>
+                    <h4>Este sistema aún no tiene usuarios</h4>
+                    <p>Presiona "Agregar usuario" para registrar el primero.</p>
                   </div>
                 </td>
               </tr>
@@ -333,12 +382,14 @@ function guardarRol() {
       </div>
 
       <!-- ==================================================
-           VISTA 2: FORMULARIO DE REGISTRO
+           VISTA 2: FORMULARIO (REGISTRAR / EDITAR)
            ================================================== -->
       <div v-else>
 
         <div class="encabezado-formulario">
-          <h3>Registrar nuevo usuario</h3>
+          <h3>
+            {{ idEnEdicion !== null ? 'Modificar usuario' : 'Registrar nuevo usuario' }}
+          </h3>
         </div>
 
         <!-- Mensajes (por ejemplo, errores de validación) -->
@@ -418,80 +469,55 @@ function guardarRol() {
             </div>
           </div>
 
+          <h4 class="subtitulo-seccion">ROL Y ESTADO</h4>
+          <hr class="divisor-seccion" />
+
+          <div class="fila-campos">
+            <!-- ROL (SEGÚN LA METODOLOGÍA DEL SISTEMA) -->
+            <div class="campo">
+              <label for="rol">
+                Rol ({{ sistemaSeleccionadoGlobal?.metodologia }})
+              </label>
+              <select id="rol" v-model="formulario.rol" required>
+                <option value="">Selecciona un rol</option>
+                <option
+                  v-for="rol in opcionesRol"
+                  :key="rol"
+                  :value="rol"
+                >
+                  {{ rol }}
+                </option>
+              </select>
+            </div>
+
+            <!-- ACTIVO (POR DEFECTO MARCADO) -->
+            <div class="campo campo-check">
+              <label class="check-activo" for="activo">
+                <input
+                  id="activo"
+                  v-model="formulario.activo"
+                  type="checkbox"
+                />
+                Usuario activo
+              </label>
+            </div>
+          </div>
+
           <div class="acciones-formulario">
             <button
               type="button"
               class="btn-cancelar"
-              @click="cancelarRegistro"
+              @click="cancelarFormulario"
             >
               Cancelar
             </button>
 
             <button type="submit" class="btn-guardar">
-              Guardar usuario
+              {{ idEnEdicion !== null ? 'Guardar cambios' : 'Guardar usuario' }}
             </button>
           </div>
 
         </form>
-      </div>
-    </div>
-
-    <!-- ====================================================
-         MODAL: ASIGNAR ROL
-         ==================================================== -->
-    <div
-      v-if="usuarioParaRol"
-      class="fondo-modal"
-      @click.self="cerrarAsignarRol"
-    >
-      <div
-        class="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="titulo-asignar-rol"
-      >
-        <h3 id="titulo-asignar-rol">Asignar rol</h3>
-
-        <!-- Usuario seleccionado -->
-        <div class="dato-modal">
-          <span>Usuario seleccionado</span>
-          <strong>{{ nombreCompleto(usuarioParaRol) }}</strong>
-          <small>{{ usuarioParaRol.correo }}</small>
-        </div>
-
-        <!-- Combo de roles -->
-        <div class="campo">
-          <label for="rol-asignar">Rol</label>
-          <select id="rol-asignar" v-model.number="rolSeleccionado">
-            <option value="">Selecciona un rol</option>
-            <option
-              v-for="rol in roles"
-              :key="rol.id"
-              :value="rol.id"
-            >
-              {{ rol.nombre }}
-            </option>
-          </select>
-          <p v-if="errorRol" class="error-campo">{{ errorRol }}</p>
-        </div>
-
-        <div class="acciones-formulario">
-          <button
-            type="button"
-            class="btn-cancelar"
-            @click="cerrarAsignarRol"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="button"
-            class="btn-guardar"
-            @click="guardarRol"
-          >
-            Asignar rol
-          </button>
-        </div>
       </div>
     </div>
 
@@ -663,7 +689,7 @@ header p:last-child {
   background: #922124;
 }
 
-/* TABLA */
+/* TABLA (mismo estilo que la de Sistemas) */
 .contenedor-tabla {
   width: 100%;
   overflow-x: auto;
@@ -689,7 +715,7 @@ header p:last-child {
 }
 
 .tabla-usuarios td {
-  padding: 8px 15px;
+  padding: 5px 15px;
   color: #555555;
   border-bottom: 1px solid #eeeeee;
   vertical-align: middle;
@@ -697,6 +723,22 @@ header p:last-child {
 
 .tabla-usuarios tbody tr:hover {
   background: #FAFAFA;
+}
+
+/* Usuario desactivado */
+.fila-inactiva td:not(:last-child) {
+  color: #999999;
+}
+
+.chip-inactivo {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #F2F2F2;
+  color: #777777;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* ESTADO VACÍO */
@@ -720,47 +762,20 @@ header p:last-child {
   font-size: 13px;
 }
 
-/* ETIQUETAS DE ROL Y ESTADO */
-.rol-etiqueta {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 20px;
-  background: #FCE8E8;
-  color: #B62A2D;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
+.estado-vacio.sin-sistema {
+  text-align: center;
 }
 
-.rol-etiqueta.sin-rol {
-  background: #F2F2F2;
-  color: #888888;
-  font-weight: 500;
-}
-
-.estado {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.estado-activo {
-  background: #E3F5E8;
-  color: #237442;
-}
-
-.estado-inactivo {
-  background: #F2F2F2;
-  color: #777777;
+.estado-vacio.sin-sistema .btn-agregar {
+  margin-top: 15px;
 }
 
 /* ACCIONES DE LA TABLA */
 .acciones-tabla {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
@@ -789,16 +804,17 @@ header p:last-child {
   transform: scale(0.96);
 }
 
-.btn-rol {
-  color: #2563EB;
+/* Editar */
+.btn-editar {
+  color: #B7791F;
 }
 
-.btn-rol:hover {
-  background: #EFF6FF;
-  border-color: #BFDBFE;
+.btn-editar:hover {
+  background: #FFFBEB;
+  border-color: #FDE68A;
 }
 
-/* INTERRUPTOR ACTIVAR / DESACTIVAR */
+/* Interruptor activar / desactivar (ON / OFF) */
 .switch {
   position: relative;
   width: 44px;
@@ -844,7 +860,7 @@ header p:last-child {
 }
 
 .subtitulo-seccion {
-  margin: 0 0 8px;
+  margin: 10px 0 8px;
   color: #B62A2D;
   font-size: 12px;
   font-weight: 700;
@@ -871,7 +887,8 @@ header p:last-child {
   font-weight: 600;
 }
 
-.campo input,
+.campo input[type="text"],
+.campo input[type="email"],
 .campo select {
   width: 100%;
   padding: 12px 14px;
@@ -891,10 +908,24 @@ header p:last-child {
   border-color: #B62A2D;
 }
 
-.error-campo {
-  margin: 0;
-  color: #B62A2D;
-  font-size: 13px;
+/* Check "Usuario activo", alineado con el combo de rol */
+.campo-check {
+  justify-content: flex-end;
+}
+
+.check-activo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  cursor: pointer;
+}
+
+.check-activo input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #B62A2D;
 }
 
 .fila-campos {
@@ -936,68 +967,6 @@ header p:last-child {
 
 .btn-guardar:hover {
   background: #922124;
-}
-
-/* MODAL */
-.fondo-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.modal {
-  position: relative;
-  width: 100%;
-  max-width: 500px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-  padding: 25px;
-  border-radius: 12px;
-  background: #FFFFFF;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-}
-
-.modal h3 {
-  margin-top: 0;
-  color: #222223;
-}
-
-.dato-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 20px;
-  padding: 14px;
-  border: 1px solid #EEEEEE;
-  border-radius: 9px;
-  background: #FAFAFA;
-}
-
-.dato-modal span {
-  color: #888888;
-  font-size: 12px;
-}
-
-.dato-modal strong {
-  color: #222223;
-  font-size: 15px;
-  overflow-wrap: anywhere;
-}
-
-.dato-modal small {
-  color: #666666;
-  font-size: 13px;
-  overflow-wrap: anywhere;
 }
 
 /* RESPONSIVO */

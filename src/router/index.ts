@@ -10,10 +10,9 @@ import LoginView from '../views/LoginView.vue'
 // Vista principal del Panel.
 import AdminPanel from '../views/AdminPanel.vue'
 
-// Vistas correspondientes a los cuatro módulos.
+// Vistas correspondientes a los módulos.
 import SystemsView from '../views/SystemsView.vue'
 import UsuariosView from '../views/UsersView.vue'
-import RolesView from '../views/RolesView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
 
 import { ref } from 'vue'
@@ -42,7 +41,6 @@ export function SistemaActivo() {
 type NombreModulo =
   | 'sistemas'
   | 'usuarios'
-  | 'roles'
   | 'historias'
 
 /*
@@ -80,7 +78,7 @@ const router = createRouter({
       },
 
       /*
-        Las cuatro vistas son hijas del Panel.
+        Las vistas son hijas del Panel.
 
         Esto permite conservar el menú lateral
         mientras cambia solamente el contenido.
@@ -118,17 +116,6 @@ const router = createRouter({
           meta: {
             requiresAuth: true,
             module: 'usuarios'
-          }
-        },
-
-        {
-          path: 'roles',
-          name: 'roles',
-          component: RolesView,
-
-          meta: {
-            requiresAuth: true,
-            module: 'roles'
           }
         },
 
@@ -190,7 +177,7 @@ router.beforeEach((to) => {
     Obtiene el módulo que intenta abrir.
 
     Por ejemplo:
-    sistemas, usuarios, roles o historias.
+    sistemas, usuarios o historias.
   */
   const modulo = to.meta.module as NombreModulo | undefined
 
@@ -217,7 +204,6 @@ router.beforeEach((to) => {
       const modulos: NombreModulo[] = [
         'sistemas',
         'usuarios',
-        'roles',
         'historias'
       ]
 
