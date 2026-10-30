@@ -238,39 +238,4 @@ router.beforeEach((to) => {
   return true
 })
 
-///Bloqueo de permisos////
-router.beforeEach((to, _from, next) => {
-  // Ignorar validaciones si va directo al login
-  if(to.path === '/'){
-    return next();
-  }
-
-  const currentUserString = localStorage.getItem('user');
-  const user = currentUserString ? JSON.parse(currentUserString) : null;
-
-  if (to.meta.requiresAuth){
-    if (!user){
-      return next({ name: 'login'});
-    }
-
-    // El administrador puede acceder a todos los modulos
-    if (user.isAdmin) {
-      return next();
-    }
-
-    const module = to.meta.module as NombreModulo;
-    const requiredLevel = (to.meta.requiredLevel as number) || 2;
-
-    if(module) {
-      const NivelUsuario = user.Permisos?.[module] ?? 1;
-
-      if(NivelUsuario < requiredLevel) {
-        alert("Acceso denegado: No tienes permisos para ingresar a este modulo.");
-        return next({ name: 'sistemas'});
-      }
-    }
-  }
-  next();
-})
-
-export default router;
+export default router
