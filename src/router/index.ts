@@ -1,91 +1,241 @@
-import { createRouter, createWebHistory } from 'vue-router'
+// Funciones necesarias para configurar Vue Router.
+import {
+  createRouter,
+  createWebHistory
+} from 'vue-router'
 
-import panel from '../views/panel.vue'
-import LoginComponent from '../components/LoginComponent.vue'
+// Vista del Login.
+import LoginView from '../views/LoginView.vue'
 
-// Vistas de los módulos
-import SistemasView from '../views/SistemasView.vue'
-import UsuariosView from '../views/UsuariosView.vue'
-import RolesView from '../views/RolesView.vue'
+// Vista principal del Panel.
+import AdminPanel from '../views/AdminPanel.vue'
+
+// Vistas correspondientes a los módulos.
+import SystemsView from '../views/SystemsView.vue'
+import UsuariosView from '../views/UsersView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
 
-////PERMISOS//////
-export const NivelPermisos = {
-  Desactivado: 1,
-  Lectura: 2,
-  Escritura: 3,
-} as const; 
-export type NivelPermisosType = typeof NivelPermisos[keyof typeof NivelPermisos];
+import { ref } from 'vue'
+import type { Sistema } from '../interfaces/Sistema'
 
-export type NombreModulo = 'Sistemas' | 'Usuarios' | 'Roles' | 'Historias';
+// Al declarar estas variables fuera de la función, actúan como un estado global (compartido)
+const sistemaSeleccionadoGlobal = ref<Sistema | null>(null)
 
-export type PermisosUsuario = Record<NombreModulo, NivelPermisosType>;
+export function SistemaActivo() {
+  function seleccionarSistema(sistema: Sistema | null) {
+    sistemaSeleccionadoGlobal.value = sistema
+  }
 
-export interface Usuario {
-  name: string;
-  isAdmin: boolean;
-  Permisos: PermisosUsuario;
+  return {
+    sistemaSeleccionadoGlobal,
+    seleccionarSistema
+  }
 }
 
-///Funciones para validar acciones de lectura o escritura en las vistas////
-export function canRead(user: Usuario, module: NombreModulo): boolean {
-  if(user.isAdmin) return true;
-  const nivel = user.Permisos[module] ?? NivelPermisos.Desactivado;
-  return nivel >= NivelPermisos.Lectura;
-}
+/*
+  Nombre permitido para los módulos.
 
-export function canWrite(user: Usuario, module: NombreModulo): boolean {
-  if(user.isAdmin) return true;
-  const nivel = user.Permisos[module] ?? NivelPermisos.Desactivado;
-  return nivel === NivelPermisos.Escritura;
-}
+  Esto ayuda a TypeScript a reconocer
+  correctamente los nombres utilizados.
+*/
+type NombreModulo =
+  | 'sistemas'
+  | 'usuarios'
+  | 'historias'
 
+/*
+  Creación del Router.
+*/
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+
+  // Utiliza URLs normales del navegador.
+  history: createWebHistory(),
 
   routes: [
+
+    /*
+      LOGIN
+
+      Esta es la primera pantalla del sistema.
+    */
     {
       path: '/',
-      component: LoginComponent
+      name: 'login',
+      component: LoginView
     },
 
+    /*
+      PANEL ADMINISTRADOR
+
+      requiresAuth indica que solamente se puede
+      acceder después de iniciar sesión.
+    */
     {
       path: '/panel',
-      component: panel,
-      meta: { requiresAuth: true },
-      // Aquí estarán las páginas que se mostrarán dentro del panel
+      component: AdminPanel,
+      meta: {
+        requiresAuth: true
+      },
+
+      /*
+        Las vistas son hijas del Panel.
+
+        Esto permite conservar el menú lateral
+        mientras cambia solamente el contenido.
+      */
       children: [
+
+        /*
+          Al entrar directamente a /panel,
+          se redirige a Sistemas.
+
+          Más abajo también validaremos que el
+          usuario realmente tenga permiso.
+        */
         {
           path: '',
           redirect: '/panel/sistemas'
         },
+
         {
           path: 'sistemas',
-          name: 'sistemas', // Añadido name para redirecciones seguras
-          component: SistemasView,
-          meta: { requiresAuth: true, module: 'Sistemas' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
+          name: 'sistemas',
+          component: SystemsView,
+
+          meta: {
+            requiresAuth: true,
+            module: 'sistemas'
+          }
         },
+
         {
           path: 'usuarios',
           name: 'usuarios',
           component: UsuariosView,
-          meta: { requiresAuth: true, module: 'Usuarios' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
+
+          meta: {
+            requiresAuth: true,
+            module: 'usuarios'
+          }
         },
-        {
-          path: 'roles',
-          name: 'roles',
-          component: RolesView,
-          meta: { requiresAuth: true, module: 'Roles' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
-        },
+
         {
           path: 'historias',
           name: 'historias',
           component: HistoriasView,
-          meta: { requiresAuth: true, module: 'Historias' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
+
+          meta: {
+            requiresAuth: true,
+            module: 'historias'
+          }
         }
+
       ]
     }
+
   ]
+
+})
+
+/*
+  GUARD DE NAVEGACIÓN
+
+  Se ejecuta antes de entrar a cualquier ruta.
+
+  Sirve para:
+  1. Comprobar que exista una sesión.
+  2. Validar permisos.
+  3. Evitar acceso manual a módulos bloqueados.
+*/
+router.beforeEach((to) => {
+
+  // El Login siempre puede abrirse.
+  if (to.path === '/') {
+    return true
+  }
+
+  // Recupera la sesión almacenada.
+  const usuarioGuardado = localStorage.getItem('user')
+
+  // Convierte la sesión en objeto.
+  const usuario = usuarioGuardado
+    ? JSON.parse(usuarioGuardado)
+    : null
+
+  /*
+    Si la ruta necesita autenticación
+    y no existe usuario, vuelve al Login.
+  */
+  if (to.meta.requiresAuth && !usuario) {
+
+    return {
+      name: 'login'
+    }
+  }
+
+  /*
+    Obtiene el módulo que intenta abrir.
+
+    Por ejemplo:
+    sistemas, usuarios o historias.
+  */
+  const modulo = to.meta.module as NombreModulo | undefined
+
+  /*
+    Si la ruta corresponde a un módulo,
+    comprueba su permiso.
+  */
+  if (modulo && usuario) {
+
+    const permiso = usuario.permisos?.[modulo]
+
+    /*
+      Permiso 1 significa Desactivado.
+
+      También bloqueamos cuando el permiso
+      no existe.
+    */
+    if (!permiso || permiso === 1) {
+
+      /*
+        Busca automáticamente el primer módulo
+        al que sí tenga acceso.
+      */
+      const modulos: NombreModulo[] = [
+        'sistemas',
+        'usuarios',
+        'historias'
+      ]
+
+      const primerModuloPermitido = modulos.find(
+        nombre => usuario.permisos?.[nombre] > 1
+      )
+
+      /*
+        Si encuentra un módulo disponible,
+        manda al usuario a ese módulo.
+      */
+      if (primerModuloPermitido) {
+
+        return {
+          name: primerModuloPermitido
+        }
+      }
+
+      /*
+        Si no tiene acceso a ningún módulo,
+        termina la sesión y vuelve al Login.
+      */
+      localStorage.removeItem('user')
+
+      return {
+        name: 'login'
+      }
+    }
+  }
+
+  // Si todas las validaciones son correctas, permite entrar.
+  return true
 })
 
 ///Bloqueo de permisos////

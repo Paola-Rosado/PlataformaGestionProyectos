@@ -20,87 +20,27 @@
           <RouterLink to="/panel/sistemas">
             <span class="icono">▣</span>
             <span>Sistemas</span>
-
-            <Pencil
-              v-if="nivelPermiso('Sistemas') === 3"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Escritura"
-            />
-
-            <Eye
-              v-else-if="nivelPermiso('Sistemas') === 2"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Lectura"
-            />
           </RouterLink>
 
           <RouterLink to="/panel/usuarios">
             <span class="icono">♟</span>
             <span>Usuarios</span>
-
-            <Pencil
-              v-if="nivelPermiso('Usuarios') === 3"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Escritura"
-            />
-
-            <Eye
-              v-else-if="nivelPermiso('Usuarios') === 2"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Lectura"
-            />
           </RouterLink>
 
           <RouterLink to="/panel/roles">
             <span class="icono">♢</span>
             <span>Roles</span>
-
-            <Pencil
-              v-if="nivelPermiso('Roles') === 3"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Escritura"
-            />
-
-            <Eye
-              v-else-if="nivelPermiso('Roles') === 2"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Lectura"
-            />
           </RouterLink>
 
           <RouterLink to="/panel/historias">
             <span class="icono">▤</span>
             <span>Historias de Usuario</span>
-
-            <Pencil
-              v-if="nivelPermiso('Historias') === 3"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Escritura"
-            />
-
-            <Eye
-              v-else-if="nivelPermiso('Historias') === 2"
-              class="permiso-icono"
-              :size="18"
-              aria-label="Lectura"
-            />
           </RouterLink>
         </nav>
       </div>
 
       <div class="sidebar-footer">
-        <button
-          type="button"
-          class="cerrar-sesion"
-          @click="cerrarSesion"
-        >
+        <button class="cerrar-sesion" @click="cerrarSesion">
           <span>↪</span>
           Cerrar sesión
         </button>
@@ -146,58 +86,16 @@
 </template>
 
 <script setup lang="ts">
+
 import { useRouter } from 'vue-router'
 import { Eye, Pencil } from 'lucide-vue-next'
 
 const router = useRouter()
 
-// Los nombres coinciden con los que utiliza el router.
-type Modulo = 'Sistemas' | 'Usuarios' | 'Roles' | 'Historias'
-
-interface UsuarioSesion {
-  isAdmin?: boolean
-  Permisos?: Partial<Record<Modulo, number>>
-}
-
-// Recupera la sesión que espera el router de develop.
-const obtenerUsuario = (): UsuarioSesion | null => {
-  const datos = localStorage.getItem('user')
-
-  if (!datos) {
-    return null
-  }
-
-  try {
-    const resultado: unknown = JSON.parse(datos)
-
-    if (
-      typeof resultado !== 'object' ||
-      resultado === null ||
-      Array.isArray(resultado)
-    ) {
-      return null
-    }
-
-    return resultado as UsuarioSesion
-  } catch {
-    return null
-  }
-}
-
-const usuario = obtenerUsuario()
-
-// 1 = Desactivado, 2 = Lectura, 3 = Escritura.
-const nivelPermiso = (modulo: Modulo): number => {
-  if (usuario?.isAdmin === true) {
-    return 3
-  }
-
-  return usuario?.Permisos?.[modulo] ?? 1
-}
-
 const cerrarSesion = () => {
   router.push('/')
 }
+
 </script>
 
 <style scoped>
@@ -264,7 +162,7 @@ const cerrarSesion = () => {
   color: #fefefe;
 }
 
-/* TÍTULO DEL MENÚ */
+/* TITULO DEL MENU */
 
 .menu-titulo {
   font-size: 11px;
@@ -285,7 +183,9 @@ nav {
 nav a {
   color: #fefefe;
   text-decoration: none;
+
   padding: 15px 17px;
+
   border-radius: 10px;
 
   display: flex;
@@ -293,6 +193,7 @@ nav a {
   gap: 15px;
 
   font-size: 15px;
+
   transition: 0.25s;
 }
 
@@ -305,13 +206,6 @@ nav a:hover {
   font-size: 20px;
   width: 25px;
   text-align: center;
-}
-
-/* ICONOS DE PERMISOS */
-
-.permiso-icono {
-  margin-left: auto;
-  flex-shrink: 0;
 }
 
 /* MÓDULO SELECCIONADO */
@@ -332,14 +226,20 @@ nav a.router-link-active {
 
 .cerrar-sesion {
   width: 100%;
+
   border: none;
   background: transparent;
   color: #fefefe;
+
   padding: 14px;
+
   text-align: left;
+
   font-size: 14px;
   cursor: pointer;
+
   border-radius: 8px;
+
   transition: 0.2s;
 }
 
@@ -354,9 +254,17 @@ nav a.router-link-active {
 
 .mensaje {
   margin-top: 30px;
+
   padding: 20px;
+
   border-radius: 15px;
-  background: linear-gradient(135deg, #b62a2d, #d5575e);
+
+  background: linear-gradient(
+    135deg,
+    #b62a2d,
+    #d5575e
+  );
+
   text-align: center;
 }
 
@@ -381,6 +289,7 @@ nav a.router-link-active {
 .header {
   min-height: 100px;
   background-color: #fefefe;
+
   padding: 20px 40px;
 
   display: flex;
@@ -388,6 +297,7 @@ nav a.router-link-active {
   align-items: center;
 
   box-sizing: border-box;
+
   border-bottom: 1px solid #eee;
 }
 
@@ -396,12 +306,15 @@ nav a.router-link-active {
   font-size: 11px;
   letter-spacing: 3px;
   font-weight: bold;
+
   margin: 0 0 7px;
 }
 
 .header h1 {
   margin: 0;
+
   font-size: 28px;
+
   color: #222223;
 }
 
@@ -416,7 +329,9 @@ nav a.router-link-active {
 .avatar {
   width: 43px;
   height: 43px;
+
   border-radius: 50%;
+
   background-color: #b62a2d;
   color: white;
 
@@ -456,6 +371,7 @@ nav a.router-link-active {
 ========================= */
 
 @media (max-width: 900px) {
+
   .sidebar {
     width: 220px;
   }
@@ -470,6 +386,7 @@ nav a.router-link-active {
 }
 
 @media (max-width: 700px) {
+
   .panel {
     flex-direction: column;
   }
@@ -515,6 +432,7 @@ nav a.router-link-active {
 }
 
 @media (max-width: 450px) {
+
   nav {
     grid-template-columns: 1fr;
   }
@@ -526,5 +444,7 @@ nav a.router-link-active {
   .header h1 {
     font-size: 18px;
   }
+
 }
+
 </style>

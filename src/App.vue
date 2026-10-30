@@ -1,16 +1,18 @@
 <template>
-  <div id="app">
-    <RouterView />
-  </div>
+
+  <!--
+    RouterView carga la vista correspondiente
+    dependiendo de la URL actual.
+  -->
+  <RouterView />
+
 </template>
 
-<script setup lang="ts">
-// App.vue es el componente principal.
-// RouterView muestra la vista correspondiente según la ruta actual.
-</script>
-
 <style>
-/* Estilos generales de toda la aplicación */
+
+/*
+  Estilos generales de toda la aplicación.
+*/
 
 * {
   box-sizing: border-box;
@@ -19,23 +21,29 @@
 html,
 body,
 #app {
-  margin: 0;
-  padding: 0;
   width: 100%;
   min-height: 100%;
+
+  margin: 0;
+  padding: 0;
 }
 
 body {
   min-height: 100vh;
-  font-family: Arial, Helvetica, sans-serif;
-  background-color: #f8f6f6;
+
+  background: #f7f3f3;
+
   color: #222223;
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
 }
 
 button,
-input,
-select,
-textarea {
+input {
   font-family: inherit;
 }
+
 </style>
