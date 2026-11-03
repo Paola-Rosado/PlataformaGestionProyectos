@@ -213,11 +213,11 @@ ACTIVAR / DESACTIVAR
 function cambiarEstado(usuario: Usuario) {
   const ahoraActivo = alternarActivo(usuario.id)
 
-  mostrarNotificacion(
+  //mostrarNotificacion(
     ahoraActivo
       ? `Usuario ${usuario.correo} activado.`
       : `Usuario ${usuario.correo} desactivado.`
-  )
+  //)
 }
 </script>
 
@@ -236,17 +236,18 @@ function cambiarEstado(usuario: Usuario) {
           </h2>
         </div>
 
-        <!-- ETIQUETA QUE MUESTRA EL SISTEMA SELECCIONADO AL LADO DERECHO -->
-        <div v-if="sistemaSeleccionadoGlobal" class="badge-sistema">
-          <span class="punto-activo">●</span>
-          <span class="texto-sistema">{{ sistemaSeleccionadoGlobal.nombre }}</span>
-        </div>
-        <div v-else class="badge-sistema sin-seleccion">
-          <span>Sin sistema seleccionado</span>
-        </div>
+        
       </div>
 
       <p>Administración de los usuarios del sistema seleccionado.</p>
+
+      <!-- Etiqueta verde de ancho total con títulos en negritas -->
+      <div v-if="sistemaSeleccionadoGlobal" style="margin-top: 8px;">
+        <span style="display: block; width: 100%; background-color: #FFCDD2; color: #000000; padding: 10px 14px; border-radius: 6px; font-size: 1.1rem; font-weight: normal; text-align: center; box-sizing: border-box;">
+          <strong>Sistema seleccionado:</strong> {{ sistemaSeleccionadoGlobal.nombre }} — <strong>Metodología:</strong> {{ sistemaSeleccionadoGlobal.metodologia }}
+        </span>
+      </div>
+
     </header>
 
     <div class="tarjeta">
@@ -274,7 +275,6 @@ function cambiarEstado(usuario: Usuario) {
             <h3>Listado de usuarios</h3>
             <p>
               Consulta y administra los usuarios del sistema
-              (metodología: {{ sistemaSeleccionadoGlobal.metodologia }}).
             </p>
           </div>
 
