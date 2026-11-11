@@ -49,10 +49,10 @@ const passwordVacio = ref(false)
 
 /*
   PERMISOS:
-
-  1 = Desactivado
-  2 = Lectura
-  3 = Escritura
+  1 = Sin acceso
+  2 = Solo consultar
+  3 = Consultar y modificar
+  4 = Acceso completo
 
   Cada usuario tiene:
   - Nombre
@@ -80,28 +80,26 @@ const usuarios = [
 
     // Tiene acceso completo al sistema.
     permisos: {
-      sistemas: 3,
-      usuarios: 3,
-      roles: 3,
-      historias: 3
+      sistemas: 4,
+      usuarios: 4,
+      historias: 4
     }
   },
 
   // ----------------------------------------------------
-  // INVITADO
+  // INTERNO
   // ----------------------------------------------------
   {
     nombre: 'Ruby Sosa',
     correo: 'Rubyl@gmail.com',
     password: '5678',
-    rol: 'Invitado',
+    rol: 'Interno',
 
     // Tiene permisos limitados.
     permisos: {
-      sistemas: 2,
+      sistemas: 3,
       usuarios: 1,
-      roles: 1,
-      historias: 2
+      historias: 3
     }
   },
 
@@ -117,7 +115,6 @@ const usuarios = [
     permisos: {
       sistemas: 2,
       usuarios: 1,
-      roles: 1,
       historias: 2
     }
   },
@@ -134,7 +131,6 @@ const usuarios = [
     permisos: {
       sistemas: 1,
       usuarios: 1,
-      roles: 1,
       historias: 2
     }
   }
@@ -514,7 +510,7 @@ const seleccionarUsuario = (
  *
  * Se utiliza para:
  * - Administrador.
- * - Invitado.
+ * - Interno.
  */
 const llenarCredenciales = (rol: string): void => {
 
@@ -915,12 +911,12 @@ const iniciarSesion = (): void => {
             Administrador
           </button>
 
-          <!-- INVITADO -->
+          <!-- INTERNO -->
           <button
             type="button"
-            @click="llenarCredenciales('Invitado')"
+            @click="llenarCredenciales('Interno')"
           >
-            Invitado
+            Interno
           </button>
 
           <!-- EXTERNO -->

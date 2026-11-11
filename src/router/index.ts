@@ -190,12 +190,17 @@ router.beforeEach((to) => {
     const permiso = usuario.permisos?.[modulo]
 
     /*
-      Permiso 1 significa Desactivado.
+  Los niveles de permisos son:
 
-      También bloqueamos cuando el permiso
-      no existe.
-    */
-    if (!permiso || permiso === 1) {
+  1 = Sin acceso
+  2 = Solo consultar
+  3 = Consultar y modificar
+  4 = Acceso completo
+
+  Si el permiso es menor que 2 o no existe,
+  el usuario no puede entrar al módulo.
+*/
+    if (typeof permiso !== 'number' || permiso < 2 || permiso > 4) {
 
       /*
         Busca automáticamente el primer módulo
@@ -208,7 +213,11 @@ router.beforeEach((to) => {
       ]
 
       const primerModuloPermitido = modulos.find(
-        nombre => usuario.permisos?.[nombre] > 1
+        nombre => {
+          const nivel = usuario.permisos?.[nombre]
+
+          return typeof nivel === 'number' && nivel >= 2 && nivel <= 4
+        }
       )
 
       /*

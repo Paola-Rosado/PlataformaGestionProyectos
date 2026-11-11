@@ -40,6 +40,31 @@ aplicarSistemaPorDefecto(sistemaSeleccionadoGlobal.value, seleccionarSistema)
 
 const { usuarios, usuariosDeSistema, nombreCompleto } = useAccesos()
 
+// Control de permisos del usuario
+const usuarioSesion = JSON.parse(
+  localStorage.getItem('user') || 'null'
+)
+
+// Obtener el permiso del módulo Historias.
+const permisoHistorias =
+  usuarioSesion?.permisos?.historias ?? 1
+
+// Nivel 2, 3 y 4: puede consultar.
+const puedeConsultar =
+  permisoHistorias >= 2 && permisoHistorias <= 4
+
+// Nivel 3 y 4: puede modificar.
+const puedeModificar =
+  permisoHistorias >= 3 && permisoHistorias <= 4
+
+// Nivel 4: puede agregar.
+const puedeAgregar =
+  permisoHistorias === 4
+
+// Nivel 4: puede activar y desactivar.
+const puedeCambiarEstado =
+  permisoHistorias === 4
+
 function irASistemas() {
   router.push('/panel/sistemas')
 }
@@ -48,6 +73,8 @@ function irASistemas() {
 const mensaje = ref('')
 const tipoMensaje = ref<'exito' | 'error'>('exito')
 const mostrarFormulario = ref(false)
+// Controla la ventana de detalles de la historia.
+const historiaSeleccionada = ref<HistoriaUsuario | null>(null)
 const idEnEdicion = ref<number | null>(null)
 const fechaActualizacion = ref('')
 
@@ -168,6 +195,10 @@ function fechaActual() {
 
 // Abrir formulario para agregar
 function agregarHistoria() {
+  if (!puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar historias.', 'error')
+  return
+}
   mensaje.value = ''
   limpiarFormulario()
   idEnEdicion.value = null
@@ -193,6 +224,16 @@ function cancelarRegistro() {
 function guardarHistoria() {
   const sistema = sistemaSeleccionadoGlobal.value
   if (!sistema) return
+
+  if (idEnEdicion.value === null && !puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar historias.', 'error')
+  return
+  }
+
+  if (idEnEdicion.value !== null && !puedeModificar) {
+    mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
+    return
+  }
 
   const nombre = formulario.value.nombre.trim()
   const descripcion = formulario.value.descripcion.trim()
@@ -256,11 +297,22 @@ function guardarHistoria() {
   )
 }
 
+// Mostrar los detalles de una historia de usuario.
 function verDetalle(historia: HistoriaUsuario) {
-  mostrarNotificacion(`Viendo detalles de: ${historia.nombre}`)
+  mensaje.value = ''
+  historiaSeleccionada.value = historia
+}
+
+// Cerrar los detalles.
+function cerrarDetalle() {
+  historiaSeleccionada.value = null
 }
 
 function modificarHistoria(historia: HistoriaUsuario) {
+  if (!puedeModificar) {
+  mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
+  return
+}
   mensaje.value = ''
   idEnEdicion.value = historia.id
   fechaActualizacion.value = historia.fechaActualizacion || ''
@@ -278,6 +330,10 @@ function modificarHistoria(historia: HistoriaUsuario) {
 
 // Las historias no se eliminan: solo se desactivan (interruptor ON / OFF).
 function cambiarEstadoHistoria(historia: HistoriaUsuario) {
+  if (!puedeCambiarEstado) {
+  mostrarNotificacion('No tienes permiso para activar o desactivar historias.', 'error')
+  return
+}
   historia.activo = !historia.activo
 
   mostrarNotificacion(
@@ -304,6 +360,10 @@ const formularioCriterio = ref({
 })
 
 function abrirModalCriterio() {
+  if (!puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
+  return
+}
   formularioCriterio.value = { nombre: '', descripcion: '' }
   idCriterioEnEdicion.value = null
   errorCriterio.value = ''
@@ -311,6 +371,10 @@ function abrirModalCriterio() {
 }
 
 function editarCriterio(criterio: CriterioAceptacion) {
+  if (!puedeModificar) {
+  mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
+  return
+}
   formularioCriterio.value = {
     nombre: criterio.nombre,
     descripcion: criterio.descripcion
@@ -330,6 +394,16 @@ function cerrarModalCriterio() {
 function guardarCriterio() {
   const historia = historiaEnEdicion.value
   if (!historia) return
+
+  if (idCriterioEnEdicion.value === null && !puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
+  return
+  }
+
+  if (idCriterioEnEdicion.value !== null && !puedeModificar) {
+    mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
+    return
+  }
 
   const nombre = formularioCriterio.value.nombre.trim()
   const descripcion = formularioCriterio.value.descripcion.trim()
@@ -423,6 +497,7 @@ function guardarCriterio() {
 
           <!-- BOTÓN AGREGAR HISTORIA -->
           <button
+            v-if="puedeAgregar"
             type="button"
             class="btn-agregar"
             @click="agregarHistoria"
@@ -501,6 +576,7 @@ function guardarCriterio() {
                       <Eye :size="18" />
                     </button>
                     <button
+                      v-if="puedeModificar"
                       type="button"
                       class="btn-icono btn-editar"
                       title="Modificar"
@@ -510,6 +586,7 @@ function guardarCriterio() {
                     </button>
                     <!-- ACTIVAR / DESACTIVAR (interruptor ON / OFF) -->
                     <button
+                      v-if="puedeCambiarEstado"
                       type="button"
                       class="switch"
                       :class="{ activo: historia.activo }"
@@ -684,6 +761,7 @@ function guardarCriterio() {
               </div>
 
               <button
+                v-if="puedeAgregar"
                 type="button"
                 class="btn-agregar"
                 @click="abrirModalCriterio"
@@ -714,6 +792,7 @@ function guardarCriterio() {
                     <td>
                       <div class="acciones-tabla">
                         <button
+                          v-if="puedeModificar"
                           type="button"
                           class="btn-icono btn-editar"
                           title="Modificar criterio"
@@ -759,6 +838,167 @@ function guardarCriterio() {
         </form>
       </div>
 
+    </div>
+
+        <!-- ====================================================
+         MODAL: DETALLES DE LA HISTORIA
+         ==================================================== -->
+    <div
+      v-if="historiaSeleccionada"
+      class="fondo-modal"
+      @click.self="cerrarDetalle"
+    >
+      <div
+        class="modal modal-detalles"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-detalles"
+      >
+        <!-- Encabezado -->
+        <div class="modal-encabezado">
+          <div class="icono-detalles">
+            <BookOpen :size="26" />
+          </div>
+
+          <div class="titulo-detalles">
+            <h3 id="titulo-detalles">Detalles de la historia de usuario</h3>
+            <p>Información general del requerimiento</p>
+          </div>
+
+          <button
+            type="button"
+            class="btn-cerrar-modal"
+            aria-label="Cerrar detalles"
+            @click="cerrarDetalle"
+          >
+            ×
+          </button>
+        </div>
+
+        <!-- Nombre e ID -->
+        <div class="resumen-sistema">
+          <div>
+            <span class="etiqueta-detalle">NOMBRE DEL REQUERIMIENTO</span>
+            <h4>{{ historiaSeleccionada.nombre }}</h4>
+          </div>
+
+          <span class="id-sistema">
+            ID: {{ historiaSeleccionada.id }}
+          </span>
+        </div>
+
+        <!-- Descripción -->
+        <div class="seccion-detalles">
+          <h5>Descripción</h5>
+          <p class="descripcion-detalle">
+            {{ historiaSeleccionada.descripcion }}
+          </p>
+        </div>
+
+        <!-- Persona que proporcionó la historia -->
+        <div class="seccion-detalles">
+          <h5>Persona que proporcionó el requerimiento</h5>
+
+          <div class="rejilla-detalles">
+            <div class="dato-detalle">
+              <span>Nombre completo</span>
+              <p>
+                {{
+                  personaDe(historiaSeleccionada)
+                    ? nombreCompleto(personaDe(historiaSeleccionada)!)
+                    : 'Sin asignar'
+                }}
+              </p>
+            </div>
+
+            <div class="dato-detalle">
+              <span>Correo electrónico</span>
+              <p>
+                {{ personaDe(historiaSeleccionada)?.correo ?? 'Sin asignar' }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prioridad y estatus -->
+        <div class="seccion-detalles">
+          <h5>Información del requerimiento</h5>
+
+          <div class="rejilla-detalles">
+            <div class="dato-detalle">
+              <span>Prioridad</span>
+              <p>{{ historiaSeleccionada.prioridad }}</p>
+            </div>
+
+            <div class="dato-detalle">
+              <span>Estatus</span>
+              <p>{{ historiaSeleccionada.estatus }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fechas -->
+        <div class="seccion-detalles">
+          <h5>Registro</h5>
+
+          <div class="rejilla-detalles">
+            <div class="dato-detalle">
+              <span>Fecha de captura</span>
+              <p>{{ historiaSeleccionada.fechaCaptura }}</p>
+            </div>
+
+            <div class="dato-detalle">
+              <span>Fecha de actualización</span>
+              <p>{{ historiaSeleccionada.fechaActualizacion }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Criterios de aceptación -->
+        <div class="seccion-detalles">
+          <h5>Criterios de aceptación</h5>
+
+          <div
+            v-if="historiaSeleccionada.criterios.length > 0"
+            class="lista-criterios"
+          >
+            <div
+              v-for="(criterio, indice) in historiaSeleccionada.criterios"
+              :key="criterio.id"
+              class="criterio-detalle"
+            >
+              <strong>{{ indice + 1 }}. {{ criterio.nombre }}</strong>
+              <p>{{ criterio.descripcion }}</p>
+            </div>
+          </div>
+
+          <p v-else class="descripcion-detalle">
+            Esta historia aún no tiene criterios de aceptación.
+          </p>
+        </div>
+
+        <!-- Estado -->
+        <div class="seccion-detalles">
+          <h5>Estado del registro</h5>
+          <span
+            class="estatus-detalle"
+            :class="historiaSeleccionada.activo ? 'estatus-finalizado' : 'chip-inactivo'"
+          >
+            {{ historiaSeleccionada.activo ? 'Activo' : 'Inactivo' }}
+          </span>
+        </div>
+
+        <!-- Pie del modal -->
+        <div class="pie-modal">
+          <button
+            type="button"
+            class="btn-guardar"
+            @click="cerrarDetalle"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ====================================================
@@ -1323,6 +1563,228 @@ h2 {
   .btn-cancelar,
   .btn-guardar {
     width: 100%;
+  }
+}
+
+/* MODAL DE DETALLES DE HISTORIAS */
+
+.modal-detalles {
+  max-width: 650px;
+  padding: 0;
+  border-radius: 16px;
+  overflow-x: hidden;
+}
+
+.modal-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.icono-detalles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #FCE8E8;
+  color: #B62A2D;
+}
+
+.titulo-detalles {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal .titulo-detalles h3 {
+  margin: 0 0 5px;
+  font-size: 20px;
+}
+
+.modal .titulo-detalles p {
+  margin: 0;
+  color: #777777;
+  font-size: 13px;
+}
+
+.btn-cerrar-modal {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: #F5F5F5;
+  color: #555555;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.btn-cerrar-modal:hover {
+  background: #EEEEEE;
+}
+
+.resumen-sistema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 22px 24px;
+  background: #FAFAFA;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.etiqueta-detalle {
+  color: #888888;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.resumen-sistema h4 {
+  margin: 7px 0 0;
+  color: #222223;
+  font-size: 19px;
+  overflow-wrap: anywhere;
+}
+
+.id-sistema {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #FCE8E8;
+  color: #B62A2D;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.seccion-detalles {
+  padding: 18px 24px;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.modal .seccion-detalles h5 {
+  margin: 0 0 14px;
+  color: #B62A2D;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.modal .descripcion-detalle {
+  margin: 0;
+  padding: 13px;
+  border-radius: 8px;
+  background: #F8F8F8;
+  color: #555555;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rejilla-detalles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dato-detalle {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #EEEEEE;
+  border-radius: 9px;
+  background: #FFFFFF;
+}
+
+.dato-detalle > span:first-child {
+  color: #888888;
+  font-size: 12px;
+}
+
+.modal .dato-detalle p {
+  margin: 7px 0 0;
+  color: #333333;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lista-criterios {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.criterio-detalle {
+  padding: 12px;
+  border: 1px solid #EEEEEE;
+  border-radius: 9px;
+  background: #FFFFFF;
+}
+
+.criterio-detalle strong {
+  color: #333333;
+  font-size: 13px;
+}
+
+.modal .criterio-detalle p {
+  margin: 7px 0 0;
+  color: #666666;
+  font-size: 13px;
+}
+
+.estatus-detalle {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.estatus-finalizado {
+  background: #E3F5E8;
+  color: #237442;
+}
+
+.pie-modal {
+  display: flex;
+  justify-content: flex-end;
+  padding: 18px 24px;
+  background: #FAFAFA;
+}
+
+.pie-modal .btn-guardar {
+  min-width: 100px;
+}
+
+@media (max-width: 520px) {
+  .modal-detalles {
+    max-height: 90vh;
+  }
+
+  .modal-encabezado {
+    padding: 18px;
+  }
+
+  .resumen-sistema,
+  .seccion-detalles {
+    padding: 16px 18px;
+  }
+
+  .resumen-sistema {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rejilla-detalles {
+    grid-template-columns: 1fr;
+  }
+
+  .pie-modal {
+    padding: 16px 18px;
   }
 }
 </style>
