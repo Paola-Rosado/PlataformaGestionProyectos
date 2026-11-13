@@ -22,11 +22,14 @@ import { SistemaActivo } from '../router/index'
 import { useAccesos } from '../composables/UseAccesos'
 import { useSistemas } from '../composables/UseSistemas'
 import type { Usuario } from '../interfaces/Usuario'
+import { refPersistente } from '../composables/UseAlmacenamiento'
 import type {
   HistoriaUsuario,
   CriterioAceptacion,
   EstatusAvance
 } from '../interfaces/HistoriaUsuario'
+
+
 
 const MAX_TEXTO = 300
 const MAX_AREA = 500
@@ -87,8 +90,10 @@ function mostrarNotificacion(
   tipoMensaje.value = tipo
 }
 
-// Listado de historias de usuario (datos de ejemplo)
-const historias = ref<HistoriaUsuario[]>([
+
+// Listado persistente de historias de usuario.
+// Si no existen registros guardados, utiliza los datos de ejemplo.
+const historias = refPersistente<HistoriaUsuario>('historias', [
   {
     id: 1,
     sistemaId: 1,

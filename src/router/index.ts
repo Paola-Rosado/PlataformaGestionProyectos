@@ -1,16 +1,11 @@
-// Funciones necesarias para configurar Vue Router.
+
 import {
   createRouter,
   createWebHistory
 } from 'vue-router'
 
-// Vista del Login.
 import LoginView from '../views/LoginView.vue'
-
-// Vista principal del Panel.
 import AdminPanel from '../views/AdminPanel.vue'
-
-// Vistas correspondientes a los módulos.
 import SystemsView from '../views/SystemsView.vue'
 import UsuariosView from '../views/UsersView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
@@ -18,12 +13,22 @@ import HistoriasView from '../views/HistoriasView.vue'
 import { ref } from 'vue'
 import type { Sistema } from '../interfaces/Sistema'
 
-// Al declarar estas variables fuera de la función, actúan como un estado global (compartido)
+// Estado global del sistema seleccionado.
 const sistemaSeleccionadoGlobal = ref<Sistema | null>(null)
 
+// Gestión del sistema activo.
 export function SistemaActivo() {
   function seleccionarSistema(sistema: Sistema | null) {
     sistemaSeleccionadoGlobal.value = sistema
+
+    if (sistema) {
+      localStorage.setItem(
+        'plataforma:sistemaActivo',
+        String(sistema.id)
+      )
+    } else {
+      localStorage.removeItem('plataforma:sistemaActivo')
+    }
   }
 
   return {
@@ -32,44 +37,22 @@ export function SistemaActivo() {
   }
 }
 
-/*
-  Nombre permitido para los módulos.
-
-  Esto ayuda a TypeScript a reconocer
-  correctamente los nombres utilizados.
-*/
+// Tipos de módulos permitidos.
 type NombreModulo =
   | 'sistemas'
   | 'usuarios'
   | 'historias'
 
-/*
-  Creación del Router.
-*/
+// Configuración del router.
 const router = createRouter({
-
-  // Utiliza URLs normales del navegador.
   history: createWebHistory(),
 
   routes: [
-
-    /*
-      LOGIN
-
-      Esta es la primera pantalla del sistema.
-    */
     {
       path: '/',
       name: 'login',
       component: LoginView
     },
-
-    /*
-      PANEL ADMINISTRADOR
-
-      requiresAuth indica que solamente se puede
-      acceder después de iniciar sesión.
-    */
     {
       path: '/panel',
       component: AdminPanel,
@@ -77,173 +60,110 @@ const router = createRouter({
         requiresAuth: true
       },
 
-      /*
-        Las vistas son hijas del Panel.
-
-        Esto permite conservar el menú lateral
-        mientras cambia solamente el contenido.
-      */
       children: [
-
-        /*
-          Al entrar directamente a /panel,
-          se redirige a Sistemas.
-
-          Más abajo también validaremos que el
-          usuario realmente tenga permiso.
-        */
         {
           path: '',
           redirect: '/panel/sistemas'
         },
-
         {
           path: 'sistemas',
           name: 'sistemas',
           component: SystemsView,
-
           meta: {
             requiresAuth: true,
             module: 'sistemas'
           }
         },
-
         {
           path: 'usuarios',
           name: 'usuarios',
           component: UsuariosView,
-
           meta: {
             requiresAuth: true,
             module: 'usuarios'
           }
         },
-
         {
           path: 'historias',
           name: 'historias',
           component: HistoriasView,
-
           meta: {
             requiresAuth: true,
             module: 'historias'
           }
         }
-
       ]
     }
-
   ]
-
 })
 
-/*
-  GUARD DE NAVEGACIÓN
-
-  Se ejecuta antes de entrar a cualquier ruta.
-
-  Sirve para:
-  1. Comprobar que exista una sesión.
-  2. Validar permisos.
-  3. Evitar acceso manual a módulos bloqueados.
-*/
+// Guard de navegación.
 router.beforeEach((to) => {
 
-  // El Login siempre puede abrirse.
   if (to.path === '/') {
     return true
   }
 
-  // Recupera la sesión almacenada.
   const usuarioGuardado = localStorage.getItem('user')
 
-  // Convierte la sesión en objeto.
-  const usuario = usuarioGuardado
-    ? JSON.parse(usuarioGuardado)
-    : null
+  let usuario: any = null
 
-  /*
-    Si la ruta necesita autenticación
-    y no existe usuario, vuelve al Login.
-  */
-  if (to.meta.requiresAuth && !usuario) {
+  try {
+    usuario = usuarioGuardado
+      ? JSON.parse(usuarioGuardado)
+      : null
+  } catch (error) {
+    console.error('Error al recuperar la sesión:', error)
 
-    return {
-      name: 'login'
-    }
+    localStorage.removeItem('user')
+    localStorage.removeItem('plataforma:sistemaActivo')
+
+    return { name: 'login' }
   }
 
-  /*
-    Obtiene el módulo que intenta abrir.
+  if (to.meta.requiresAuth && !usuario) {
+    return { name: 'login' }
+  }
 
-    Por ejemplo:
-    sistemas, usuarios o historias.
-  */
   const modulo = to.meta.module as NombreModulo | undefined
 
-  /*
-    Si la ruta corresponde a un módulo,
-    comprueba su permiso.
-  */
   if (modulo && usuario) {
 
     const permiso = usuario.permisos?.[modulo]
 
-    /*
-  Los niveles de permisos son:
+    if (
+      typeof permiso !== 'number' ||
+      permiso < 2 ||
+      permiso > 4
+    ) {
 
-  1 = Sin acceso
-  2 = Solo consultar
-  3 = Consultar y modificar
-  4 = Acceso completo
-
-  Si el permiso es menor que 2 o no existe,
-  el usuario no puede entrar al módulo.
-*/
-    if (typeof permiso !== 'number' || permiso < 2 || permiso > 4) {
-
-      /*
-        Busca automáticamente el primer módulo
-        al que sí tenga acceso.
-      */
       const modulos: NombreModulo[] = [
         'sistemas',
         'usuarios',
         'historias'
       ]
 
-      const primerModuloPermitido = modulos.find(
-        nombre => {
-          const nivel = usuario.permisos?.[nombre]
+      const primerModuloPermitido = modulos.find(nombre => {
+        const nivel = usuario.permisos?.[nombre]
 
-          return typeof nivel === 'number' && nivel >= 2 && nivel <= 4
-        }
-      )
+        return (
+          typeof nivel === 'number' &&
+          nivel >= 2 &&
+          nivel <= 4
+        )
+      })
 
-      /*
-        Si encuentra un módulo disponible,
-        manda al usuario a ese módulo.
-      */
       if (primerModuloPermitido) {
-
-        return {
-          name: primerModuloPermitido
-        }
+        return { name: primerModuloPermitido }
       }
 
-      /*
-        Si no tiene acceso a ningún módulo,
-        termina la sesión y vuelve al Login.
-      */
       localStorage.removeItem('user')
+      localStorage.removeItem('plataforma:sistemaActivo')
 
-      return {
-        name: 'login'
-      }
+      return { name: 'login' }
     }
   }
 
-  // Si todas las validaciones son correctas, permite entrar.
   return true
 })
 
