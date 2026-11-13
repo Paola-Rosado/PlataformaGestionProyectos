@@ -10,11 +10,11 @@
   Las variables se declaran fuera de la función para que
   todas las vistas trabajen sobre los mismos datos.
 
-  IMPORTANTE: por ahora los datos viven en memoria.
-  Los registros y roles de ejemplo deben validarse y sustituirse
-  por la base de datos.
+  IMPORTANTE: mientras no haya base de datos, los usuarios se guardan en
+  el navegador (ver UseAlmacenamiento.ts). Los registros y roles de
+  ejemplo deben validarse y sustituirse por la base de datos.
 */
-import { ref } from 'vue'
+import { refPersistente } from './UseAlmacenamiento'
 import type { Usuario } from '../interfaces/Usuario'
 
 // Las llaves deben coincidir con el nombre de la metodología del sistema.
@@ -39,7 +39,7 @@ const rolesPorMetodologia: Record<string, string[]> = {
   ]
 }
 
-const usuarios = ref<Usuario[]>([
+const usuarios = refPersistente<Usuario>('usuarios', [
   { id: 1, sistemaId: 1, correo: 'Rubyl@gmail.com', nombre: 'Ruby', apellidoPaterno: 'Sosa', apellidoMaterno: '', rol: 'Product Owner', activo: true },
   { id: 2, sistemaId: 1, correo: 'monserrath@gmail.com', nombre: 'Monserrath', apellidoPaterno: 'Dzul', apellidoMaterno: '', rol: 'Equipo de desarrollo', activo: true },
   { id: 3, sistemaId: 2, correo: 'paola@gmail.com', nombre: 'Paola', apellidoPaterno: 'Pech', apellidoMaterno: '', rol: 'Gestor de entrega de servicio', activo: true },

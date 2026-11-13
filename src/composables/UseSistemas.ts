@@ -5,13 +5,14 @@
   Usuarios y el resto de módulos puedan consultarlo, y para poder
   seleccionar un sistema por defecto desde cualquier vista.
 
-  IMPORTANTE: por ahora los datos viven en memoria.
+  IMPORTANTE: mientras no haya base de datos, los sistemas se guardan en
+  el navegador (ver UseAlmacenamiento.ts).
 */
-import { ref } from 'vue'
+import { refPersistente } from './UseAlmacenamiento'
 import type { Sistema } from '../interfaces/Sistema'
 import { useAccesos } from './UseAccesos'
 
-const sistemas = ref<Sistema[]>([
+const sistemas = refPersistente<Sistema>('sistemas', [
   {
     id: 1,
     nombre: 'Sistema de Gestión Escolar',

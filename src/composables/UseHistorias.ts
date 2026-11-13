@@ -8,16 +8,15 @@
   Cada historia pertenece a un sistema (sistemaId) y guarda sus
   criterios de aceptación.
 
-  IMPORTANTE: por ahora los datos viven en memoria. Se conservan mientras
-  no se recargue la página; para guardarlos de forma definitiva hay que
-  conectarlos a la base de datos.
+  IMPORTANTE: mientras no haya base de datos, las historias y sus criterios
+  se guardan en el navegador (ver UseAlmacenamiento.ts).
 */
-import { ref } from 'vue'
+import { refPersistente } from './UseAlmacenamiento'
 import type { HistoriaUsuario } from '../interfaces/HistoriaUsuario'
 
 // Las variables se declaran fuera de la función para que todas las
 // vistas trabajen sobre los mismos datos (datos de ejemplo).
-const historias = ref<HistoriaUsuario[]>([
+const historias = refPersistente<HistoriaUsuario>('historias', [
   {
     id: 1,
     sistemaId: 1,
