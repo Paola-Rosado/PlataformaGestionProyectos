@@ -24,7 +24,8 @@ import { useSistemas } from '../composables/UseSistemas'
 import type { Usuario } from '../interfaces/Usuario'
 import type {
   HistoriaUsuario,
-  CriterioAceptacion
+  CriterioAceptacion,
+  EstatusAvance
 } from '../interfaces/HistoriaUsuario'
 
 const MAX_TEXTO = 300
@@ -71,14 +72,17 @@ function irASistemas() {
 
 // Control de vistas y mensajes
 const mensaje = ref('')
-const tipoMensaje = ref<'exito' | 'error'>('exito')
+const tipoMensaje = ref<'exito' | 'error' | 'advertencia'>('exito')
 const mostrarFormulario = ref(false)
 // Controla la ventana de detalles de la historia.
 const historiaSeleccionada = ref<HistoriaUsuario | null>(null)
 const idEnEdicion = ref<number | null>(null)
 const fechaActualizacion = ref('')
 
-function mostrarNotificacion(texto: string, tipo: 'exito' | 'error' = 'exito') {
+function mostrarNotificacion(
+  texto: string,
+  tipo: 'exito' | 'error' | 'advertencia' = 'exito'
+) {
   mensaje.value = texto
   tipoMensaje.value = tipo
 }
@@ -92,7 +96,7 @@ const historias = ref<HistoriaUsuario[]>([
     descripcion: 'Permitir inicio de sesión mediante credenciales.',
     usuarioId: 2,
     prioridad: 'Alta',
-    estatus: 'En desarrollo',
+    estatus: 'En proceso',
     fechaCaptura: '01/11/2026 08:30',
     fechaActualizacion: '01/11/2026 08:30',
     activo: true,
@@ -100,7 +104,8 @@ const historias = ref<HistoriaUsuario[]>([
       {
         id: 1,
         nombre: 'Inicio de sesión válido',
-        descripcion: 'El usuario accede al panel al escribir credenciales correctas.'
+        descripcion: 'El usuario accede al panel al escribir credenciales correctas.',
+        estatus: 'En proceso'
       }
     ]
   },
@@ -111,7 +116,7 @@ const historias = ref<HistoriaUsuario[]>([
     descripcion: 'Generar reporte en formato PDF de los registros.',
     usuarioId: 1,
     prioridad: 'Media',
-    estatus: 'Planeación',
+    estatus: 'No iniciado',
     fechaCaptura: '01/11/2026 09:15',
     fechaActualizacion: '01/11/2026 09:15',
     activo: true,
@@ -145,13 +150,37 @@ function siguienteId(lista: { id: number }[]) {
   return lista.reduce((mayor, item) => Math.max(mayor, item.id), 0) + 1
 }
 
+// Opciones de estatus (historias y criterios). Por defecto: 'No iniciado'.
+const ESTATUS_AVANCE: EstatusAvance[] = ['No iniciado', 'En proceso', 'Finalizado']
+
+// Cantidad de criterios de aceptación que aún no están finalizados.
+function criteriosPendientes(historia: HistoriaUsuario) {
+  return historia.criterios.filter(c => c.estatus !== 'Finalizado').length
+}
+
+// Advertencia cuando se intenta finalizar una historia con criterios pendientes.
+function avisoPendientes(historia: HistoriaUsuario, pendientes: number) {
+  return `No se puede finalizar "${historia.nombre}": tiene ${pendientes} ` +
+    (pendientes === 1 ? 'criterio de aceptación pendiente' : 'criterios de aceptación pendientes') +
+    '. Finaliza todos los criterios antes de cerrar la historia.'
+}
+
+// Clase de color según el estatus.
+function claseEstatus(estatus: EstatusAvance) {
+  return estatus === 'Finalizado'
+    ? 'sel-finalizado'
+    : estatus === 'En proceso'
+      ? 'sel-en-proceso'
+      : 'sel-no-iniciado'
+}
+
 // Datos del formulario de historias
 const formulario = ref({
   nombre: '',
   descripcion: '',
   usuarioId: '' as number | '',
   prioridad: '' as '' | 'Alta' | 'Media' | 'Baja',
-  estatus: '' as '' | 'Planeación' | 'En desarrollo' | 'En pruebas' | 'Finalizado'
+  estatus: 'No iniciado' as EstatusAvance
 })
 
 /*
@@ -179,7 +208,7 @@ function limpiarFormulario() {
     descripcion: '',
     usuarioId: '',
     prioridad: '',
-    estatus: ''
+    estatus: 'No iniciado'
   }
 }
 
@@ -254,6 +283,16 @@ function guardarHistoria() {
 
   const fecha = fechaActual()
   const existente = historiaEnEdicion.value
+
+  // No se puede finalizar una historia con criterios pendientes.
+  if (existente && estatus === 'Finalizado') {
+    const pendientes = criteriosPendientes(existente)
+
+    if (pendientes > 0) {
+      mostrarNotificacion(avisoPendientes(existente, pendientes), 'advertencia')
+      return
+    }
+  }
 
   if (existente) {
     // Se conservan sus criterios de aceptación.
@@ -343,6 +382,34 @@ function cambiarEstadoHistoria(historia: HistoriaUsuario) {
   )
 }
 
+// Cambia el estatus desde la columna de acciones del listado.
+function cambiarEstatusHistoria(historia: HistoriaUsuario, evento: Event) {
+  const selector = evento.target as HTMLSelectElement
+  const nuevo = selector.value as EstatusAvance
+
+  if (!puedeModificar) {
+    selector.value = historia.estatus
+    mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
+    return
+  }
+
+  // No se permite finalizar si hay criterios pendientes: se regresa el
+  // selector al estatus anterior y se muestra una advertencia.
+  if (nuevo === 'Finalizado') {
+    const pendientes = criteriosPendientes(historia)
+
+    if (pendientes > 0) {
+      selector.value = historia.estatus
+      mostrarNotificacion(avisoPendientes(historia, pendientes), 'advertencia')
+      return
+    }
+  }
+
+  historia.estatus = nuevo
+  historia.fechaActualizacion = fechaActual()
+  mostrarNotificacion(`Historia "${historia.nombre}" cambió a "${nuevo}".`)
+}
+
 /*
   ==========================================================
   CRITERIOS DE ACEPTACIÓN (MODAL)
@@ -356,7 +423,8 @@ const errorCriterio = ref('')
 
 const formularioCriterio = ref({
   nombre: '',
-  descripcion: ''
+  descripcion: '',
+  estatus: 'No iniciado' as EstatusAvance
 })
 
 function abrirModalCriterio() {
@@ -364,7 +432,7 @@ function abrirModalCriterio() {
   mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
   return
 }
-  formularioCriterio.value = { nombre: '', descripcion: '' }
+  formularioCriterio.value = { nombre: '', descripcion: '', estatus: 'No iniciado' }
   idCriterioEnEdicion.value = null
   errorCriterio.value = ''
   mostrarModalCriterio.value = true
@@ -377,7 +445,8 @@ function editarCriterio(criterio: CriterioAceptacion) {
 }
   formularioCriterio.value = {
     nombre: criterio.nombre,
-    descripcion: criterio.descripcion
+    descripcion: criterio.descripcion,
+    estatus: criterio.estatus ?? 'No iniciado'
   }
   idCriterioEnEdicion.value = criterio.id
   errorCriterio.value = ''
@@ -407,6 +476,7 @@ function guardarCriterio() {
 
   const nombre = formularioCriterio.value.nombre.trim()
   const descripcion = formularioCriterio.value.descripcion.trim()
+  const estatus = formularioCriterio.value.estatus
 
   if (!nombre || !descripcion) {
     errorCriterio.value = 'Completa el nombre y la descripción.'
@@ -421,15 +491,33 @@ function guardarCriterio() {
 
   if (idCriterioEnEdicion.value !== null) {
     const criterio = historia.criterios.find(c => c.id === idCriterioEnEdicion.value)
-    if (criterio) Object.assign(criterio, { nombre, descripcion })
+    if (criterio) Object.assign(criterio, { nombre, descripcion, estatus })
     mostrarNotificacion('Criterio de aceptación modificado correctamente.')
   } else {
     historia.criterios.push({
       id: siguienteId(historia.criterios),
       nombre,
-      descripcion
+      descripcion,
+      estatus
     })
     mostrarNotificacion('Criterio de aceptación agregado correctamente.')
+  }
+
+  /*
+    Si la historia estaba finalizada y ahora tiene criterios pendientes
+    (por ejemplo, se agregó uno nuevo), se reabre en 'En proceso'.
+  */
+  if (historia.estatus === 'Finalizado' && criteriosPendientes(historia) > 0) {
+    const fecha = fechaActual()
+    historia.estatus = 'En proceso'
+    historia.fechaActualizacion = fecha
+    fechaActualizacion.value = fecha
+    formulario.value.estatus = 'En proceso'
+
+    mostrarNotificacion(
+      'La historia pasó a "En proceso" porque tiene criterios pendientes.',
+      'advertencia'
+    )
   }
 
   cerrarModalCriterio()
@@ -511,7 +599,7 @@ function guardarCriterio() {
           v-if="mensaje"
           class="mensaje"
           :class="tipoMensaje"
-          role="status"
+          :role="tipoMensaje === 'exito' ? 'status' : 'alert'"
         >
           <span>{{ mensaje }}</span>
           <button
@@ -533,6 +621,7 @@ function guardarCriterio() {
                 <th>Nombre del requerimiento</th>
                 <th>Fecha de captura</th>
                 <th>Quién lo capturó</th>
+                <th>Estatus</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -563,6 +652,27 @@ function guardarCriterio() {
                     </small>
                   </template>
                   <span v-else class="sin-asignar">—</span>
+                </td>
+
+                <!-- Estatus de la historia (no permite Finalizado con criterios pendientes) -->
+                <td>
+                  <select
+                    class="select-estatus"
+                    :class="claseEstatus(historia.estatus)"
+                    :value="historia.estatus"
+                    :disabled="!puedeModificar || !historia.activo"
+                    title="Cambiar estatus de la historia"
+                    aria-label="Estatus de la historia"
+                    @change="cambiarEstatusHistoria(historia, $event)"
+                  >
+                    <option
+                      v-for="opcion in ESTATUS_AVANCE"
+                      :key="opcion"
+                      :value="opcion"
+                    >
+                      {{ opcion }}
+                    </option>
+                  </select>
                 </td>
 
                 <td>
@@ -601,7 +711,7 @@ function guardarCriterio() {
               </tr>
 
               <tr v-if="historiasDelSistema.length === 0">
-                <td colspan="5" class="mensaje-vacio">
+                <td colspan="6" class="mensaje-vacio">
                   <div class="estado-vacio">
                     <h4>No existen historias de usuario registradas</h4>
                     <p>Presiona "+ Agregar historia" para registrar una nueva.</p>
@@ -629,7 +739,7 @@ function guardarCriterio() {
           v-if="mensaje"
           class="mensaje"
           :class="tipoMensaje"
-          role="status"
+          :role="tipoMensaje === 'exito' ? 'status' : 'alert'"
         >
           <span>{{ mensaje }}</span>
           <button
@@ -732,18 +842,23 @@ function guardarCriterio() {
 
           <!-- Estatus -->
           <div class="campo">
-            <label for="estatusHistoria">Status del sistema</label>
+            <label for="estatusHistoria">Estatus de la historia</label>
             <select
               id="estatusHistoria"
               v-model="formulario.estatus"
               required
             >
-              <option value="">Selecciona un estatus</option>
-              <option value="Planeación">Planeación</option>
-              <option value="En desarrollo">En desarrollo</option>
-              <option value="En pruebas">En pruebas</option>
-              <option value="Finalizado">Finalizado</option>
+              <option
+                v-for="opcion in ESTATUS_AVANCE"
+                :key="opcion"
+                :value="opcion"
+              >
+                {{ opcion }}
+              </option>
             </select>
+            <small class="ayuda-campo">
+              Para finalizar la historia, todos sus criterios de aceptación deben estar finalizados.
+            </small>
           </div>
 
           <!-- ================================================
@@ -777,6 +892,7 @@ function guardarCriterio() {
                     <th>No.</th>
                     <th>Nombre del criterio</th>
                     <th>Descripción</th>
+                    <th>Estatus</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -789,6 +905,11 @@ function guardarCriterio() {
                     <td>{{ indice + 1 }}</td>
                     <td><strong>{{ criterio.nombre }}</strong></td>
                     <td>{{ criterio.descripcion }}</td>
+                    <td>
+                      <span class="chip-estatus" :class="claseEstatus(criterio.estatus)">
+                        {{ criterio.estatus }}
+                      </span>
+                    </td>
                     <td>
                       <div class="acciones-tabla">
                         <button
@@ -806,7 +927,7 @@ function guardarCriterio() {
                   </tr>
 
                   <tr v-if="historiaEnEdicion.criterios.length === 0">
-                    <td colspan="4" class="mensaje-vacio">
+                    <td colspan="5" class="mensaje-vacio">
                       <div class="estado-vacio">
                         <h4>Esta historia aún no tiene criterios de aceptación</h4>
                         <p>Presiona "+ Agregar criterio" para registrar el primero.</p>
@@ -968,6 +1089,9 @@ function guardarCriterio() {
               class="criterio-detalle"
             >
               <strong>{{ indice + 1 }}. {{ criterio.nombre }}</strong>
+              <span class="chip-estatus" :class="claseEstatus(criterio.estatus)">
+                {{ criterio.estatus }}
+              </span>
               <p>{{ criterio.descripcion }}</p>
             </div>
           </div>
@@ -1051,6 +1175,23 @@ function guardarCriterio() {
             <small class="contador" :class="{ limite: formularioCriterio.descripcion.length >= MAX_AREA }">
               {{ formularioCriterio.descripcion.length }}/{{ MAX_AREA }}
             </small>
+          </div>
+
+          <!-- Estatus (por defecto: No iniciado) -->
+          <div class="campo">
+            <label for="estatusCriterio">Estatus</label>
+            <select
+              id="estatusCriterio"
+              v-model="formularioCriterio.estatus"
+            >
+              <option
+                v-for="opcion in ESTATUS_AVANCE"
+                :key="opcion"
+                :value="opcion"
+              >
+                {{ opcion }}
+              </option>
+            </select>
           </div>
 
           <p v-if="errorCriterio" class="error-campo">{{ errorCriterio }}</p>
@@ -1786,5 +1927,71 @@ h2 {
   .pie-modal {
     padding: 16px 18px;
   }
+}
+
+/* ESTATUS DE HISTORIAS Y CRITERIOS */
+.mensaje.advertencia {
+  background: #FFF8E1;
+  color: #8A5A00;
+  border-color: #FFE0A3;
+}
+
+.select-estatus {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  background: #FFFFFF;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.select-estatus:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.select-estatus:focus-visible {
+  outline: 2px solid #B62A2D;
+  outline-offset: 3px;
+}
+
+.chip-estatus {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sel-no-iniciado {
+  background: #F2F2F2;
+  color: #555555;
+  border-color: #DDDDDD;
+}
+
+.sel-en-proceso {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border-color: #BFDBFE;
+}
+
+.sel-finalizado {
+  background: #E8F5E9;
+  color: #256B32;
+  border-color: #C8E6C9;
+}
+
+.ayuda-campo {
+  color: #777777;
+  font-size: 12px;
+}
+
+.criterio-detalle .chip-estatus {
+  margin: 4px 0;
 }
 </style>

@@ -1,3 +1,6 @@
+// Estatus de avance de una historia y de sus criterios de aceptación.
+export type EstatusAvance = 'No iniciado' | 'En proceso' | 'Finalizado'
+
 // Criterio de aceptación: detalle de una historia de usuario.
 export interface CriterioAceptacion {
   id: number
@@ -5,6 +8,8 @@ export interface CriterioAceptacion {
   nombre: string
   // Área de texto, máximo 500 caracteres.
   descripcion: string
+  // Por defecto 'No iniciado'.
+  estatus: EstatusAvance
 }
 
 // Historia de usuario (requerimiento).
@@ -19,7 +24,8 @@ export interface HistoriaUsuario {
   // ID del usuario que proporcionó el requerimiento (product owner / stakeholder).
   usuarioId: number
   prioridad: 'Alta' | 'Media' | 'Baja'
-  estatus: 'Planeación' | 'En desarrollo' | 'En pruebas' | 'Finalizado'
+  // No puede ser 'Finalizado' mientras haya criterios pendientes.
+  estatus: EstatusAvance
   // Fecha y hora en que se capturó (no cambia al editar).
   fechaCaptura: string
   fechaActualizacion?: string
@@ -27,3 +33,4 @@ export interface HistoriaUsuario {
   activo: boolean
   criterios: CriterioAceptacion[]
 }
+
