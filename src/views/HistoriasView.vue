@@ -468,26 +468,21 @@ function cerrarModalCriterio() {
 function guardarCriterio() {
   const historia = historiaEnEdicion.value
   if (!historia) return
-
   if (idCriterioEnEdicion.value === null && !puedeAgregar) {
-  mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
-  return
+    mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
+    return
   }
-
   if (idCriterioEnEdicion.value !== null && !puedeModificar) {
     mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
     return
   }
-
   const nombre = formularioCriterio.value.nombre.trim()
   const descripcion = formularioCriterio.value.descripcion.trim()
   const estatus = formularioCriterio.value.estatus
-
   if (!nombre || !descripcion) {
     errorCriterio.value = 'Completa el nombre y la descripción.'
     return
   }
-
   if (nombre.length > MAX_TEXTO || descripcion.length > MAX_AREA) {
     errorCriterio.value =
       `El nombre admite máximo ${MAX_TEXTO} caracteres y la descripción ${MAX_AREA}.`
@@ -498,7 +493,11 @@ function guardarCriterio() {
     const criterio = historia.criterios.find(c => c.id === idCriterioEnEdicion.value)
     if (criterio) Object.assign(criterio, { nombre, descripcion, estatus })
     mostrarNotificacion('Criterio de aceptación modificado correctamente.')
+    
+    // Si estás editando, sí puedes cerrar el modal opcionalmente o dejarlo abierto.
+    cerrarModalCriterio() 
   } else {
+    // Es un registro nuevo: se agrega a la lista reactiva (la tabla se actualiza al instante)
     historia.criterios.push({
       id: siguienteId(historia.criterios),
       nombre,
@@ -506,27 +505,29 @@ function guardarCriterio() {
       estatus
     })
     mostrarNotificacion('Criterio de aceptación agregado correctamente.')
+
+    // LIMPIAMOS LOS CAMPOS Y MANTENEMOS EL MODAL ABIERTO
+    formularioCriterio.value = { nombre: '', descripcion: '', estatus: 'No iniciado' }
+    errorCriterio.value = ''
+    idCriterioEnEdicion.value = null
+    // NO se llama a cerrarModalCriterio() para que el usuario pueda seguir agregando más
   }
 
-  /*
-    Si la historia estaba finalizada y ahora tiene criterios pendientes
-    (por ejemplo, se agregó uno nuevo), se reabre en 'En proceso'.
-  */
+  // Si la historia estaba finalizada y ahora tiene criterios pendientes
   if (historia.estatus === 'Finalizado' && criteriosPendientes(historia) > 0) {
     const fecha = fechaActual()
     historia.estatus = 'En proceso'
     historia.fechaActualizacion = fecha
     fechaActualizacion.value = fecha
     formulario.value.estatus = 'En proceso'
-
     mostrarNotificacion(
       'La historia pasó a "En proceso" porque tiene criterios pendientes.',
       'advertencia'
     )
   }
-
-  cerrarModalCriterio()
 }
+  cerrarModalCriterio()
+
 </script>
 
 <template>
@@ -969,7 +970,7 @@ function guardarCriterio() {
         <!-- ====================================================
          MODAL: DETALLES DE LA HISTORIA
          ==================================================== -->
-    <div
+   <div
       v-if="historiaSeleccionada"
       class="fondo-modal"
       @click.self="cerrarDetalle"
@@ -985,34 +986,28 @@ function guardarCriterio() {
           <div class="icono-detalles">
             <BookOpen :size="26" />
           </div>
-
           <div class="titulo-detalles">
             <h3 id="titulo-detalles">Detalles de la historia de usuario</h3>
             <p>Información general del requerimiento</p>
           </div>
-
           <button
             type="button"
             class="btn-cerrar-modal"
-            aria-label="Cerrar detalles"
             @click="cerrarDetalle"
           >
             ×
           </button>
         </div>
-
         <!-- Nombre e ID -->
         <div class="resumen-sistema">
           <div>
             <span class="etiqueta-detalle">NOMBRE DEL REQUERIMIENTO</span>
             <h4>{{ historiaSeleccionada.nombre }}</h4>
           </div>
-
           <span class="id-sistema">
             ID: {{ historiaSeleccionada.id }}
           </span>
         </div>
-
         <!-- Descripción -->
         <div class="seccion-detalles">
           <h5>Descripción</h5>
@@ -1020,11 +1015,9 @@ function guardarCriterio() {
             {{ historiaSeleccionada.descripcion }}
           </p>
         </div>
-
         <!-- Persona que proporcionó la historia -->
         <div class="seccion-detalles">
           <h5>Persona que proporcionó el requerimiento</h5>
-
           <div class="rejilla-detalles">
             <div class="dato-detalle">
               <span>Nombre completo</span>
@@ -1036,7 +1029,6 @@ function guardarCriterio() {
                 }}
               </p>
             </div>
-
             <div class="dato-detalle">
               <span>Correo electrónico</span>
               <p>
@@ -1045,67 +1037,43 @@ function guardarCriterio() {
             </div>
           </div>
         </div>
-
         <!-- Prioridad y estatus -->
         <div class="seccion-detalles">
           <h5>Información del requerimiento</h5>
-
           <div class="rejilla-detalles">
             <div class="dato-detalle">
               <span>Prioridad</span>
               <p>{{ historiaSeleccionada.prioridad }}</p>
             </div>
-
             <div class="dato-detalle">
               <span>Estatus</span>
               <p>{{ historiaSeleccionada.estatus }}</p>
             </div>
           </div>
         </div>
-
         <!-- Fechas -->
         <div class="seccion-detalles">
           <h5>Registro</h5>
-
           <div class="rejilla-detalles">
             <div class="dato-detalle">
               <span>Fecha de captura</span>
               <p>{{ historiaSeleccionada.fechaCaptura }}</p>
             </div>
-
             <div class="dato-detalle">
               <span>Fecha de actualización</span>
               <p>{{ historiaSeleccionada.fechaActualizacion }}</p>
             </div>
           </div>
         </div>
-
-        <!-- Criterios de aceptación -->
+        <!-- Criterios de aceptación (Solo cantidad) -->
         <div class="seccion-detalles">
           <h5>Criterios de aceptación</h5>
-
-          <div
-            v-if="historiaSeleccionada.criterios.length > 0"
-            class="lista-criterios"
-          >
-            <div
-              v-for="(criterio, indice) in historiaSeleccionada.criterios"
-              :key="criterio.id"
-              class="criterio-detalle"
-            >
-              <strong>{{ indice + 1 }}. {{ criterio.nombre }}</strong>
-              <span class="chip-estatus" :class="claseEstatus(criterio.estatus)">
-                {{ criterio.estatus }}
-              </span>
-              <p>{{ criterio.descripcion }}</p>
-            </div>
-          </div>
-
-          <p v-else class="descripcion-detalle">
-            Esta historia aún no tiene criterios de aceptación.
+          <p class="descripcion-detalle">
+            {{ historiaSeleccionada.criterios.length > 0 
+                ? `${historiaSeleccionada.criterios.length} ${historiaSeleccionada.criterios.length === 1 ? 'criterio registrado' : 'criterios registrados'}` 
+                : 'Esta historia aún no tiene criterios de aceptación.' }}
           </p>
         </div>
-
         <!-- Estado -->
         <div class="seccion-detalles">
           <h5>Estado del registro</h5>
@@ -1115,17 +1083,6 @@ function guardarCriterio() {
           >
             {{ historiaSeleccionada.activo ? 'Activo' : 'Inactivo' }}
           </span>
-        </div>
-
-        <!-- Pie del modal -->
-        <div class="pie-modal">
-          <button
-            type="button"
-            class="btn-guardar"
-            @click="cerrarDetalle"
-          >
-            Cerrar
-          </button>
         </div>
       </div>
     </div>
@@ -1213,7 +1170,6 @@ function guardarCriterio() {
               Guardar
             </button>
           </div>
-
         </form>
       </div>
     </div>
@@ -1715,28 +1671,48 @@ h2 {
 /* MODAL DE DETALLES DE HISTORIAS */
 
 .modal-detalles {
-  max-width: 650px;
-  padding: 0;
-  border-radius: 16px;
-  overflow-x: hidden;
+  max-height: 98vh;
+  padding: 10px 16px !important;
+  overflow-y: hidden !important;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.modal-encabezado {
+/* Reducir drásticamente los paddings internos de cada sección para ganar espacio */
+.modal-detalles .modal-encabezado {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 24px;
+  justify-content: space-between; /* Distribuye el icono, el texto y la X correctamente */
+  gap: 12px;
+  padding: 10px 16px !important;
   border-bottom: 1px solid #EEEEEE;
 }
 
+.modal-detalles .resumen-sistema {
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.modal-detalles .seccion-detalles {
+  padding: 8px 16px !important;
+  border-bottom: 1px solid #EEEEEE;
+  margin-bottom: 0 !important;
+}
+
+.modal-detalles .pie-modal {
+  padding: 10px 16px !important;
+}
+
+/* Ajustes de tipografía y espaciados internos compactos */
 .icono-detalles {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #FCE8E8;
   color: #B62A2D;
 }
@@ -1746,26 +1722,26 @@ h2 {
   min-width: 0;
 }
 
-.modal .titulo-detalles h3 {
-  margin: 0 0 5px;
-  font-size: 20px;
+.modal-detalles .titulo-detalles h3 {
+  margin: 0 0 2px;
+  font-size: 17px;
 }
 
-.modal .titulo-detalles p {
+.modal-detalles .titulo-detalles p {
   margin: 0;
   color: #777777;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .btn-cerrar-modal {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #F5F5F5;
   color: #555555;
-  font-size: 24px;
+  font-size: 20px;
   cursor: pointer;
 }
 
@@ -1773,33 +1749,44 @@ h2 {
   background: #EEEEEE;
 }
 
-.resumen-sistema {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 22px 24px;
-  background: #FAFAFA;
-  border-bottom: 1px solid #EEEEEE;
-}
-
 .etiqueta-detalle {
   color: #888888;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 1px;
 }
 
+.resumen-sistema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Empuja el nombre a la izquierda y el ID a la derecha */
+  gap: 15px;
+  padding: 10px 16px !important;
+  background: #FAFAFA;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+/* 2. Alinear el estado "Activo/Inactivo" a la derecha en su sección */
+.modal-detalles .seccion-detalles:has(.estatus-detalle) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Título a la izquierda, estatus a la derecha */
+}
+
+.modal-detalles .seccion-detalles:has(.estatus-detalle) h5 {
+  margin: 0 !important; /* Elimina márgenes verticales para un perfecto centrado horizontal */
+}
+
 .resumen-sistema h4 {
-  margin: 7px 0 0;
+  margin: 3px 0 0;
   color: #222223;
-  font-size: 19px;
+  font-size: 16px;
   overflow-wrap: anywhere;
 }
 
 .id-sistema {
   flex-shrink: 0;
-  padding: 6px 10px;
+  padding: 8px 16px;
   border-radius: 6px;
   background: #FCE8E8;
   color: #B62A2D;
@@ -1807,26 +1794,21 @@ h2 {
   font-weight: 600;
 }
 
-.seccion-detalles {
-  padding: 18px 24px;
-  border-bottom: 1px solid #EEEEEE;
-}
-
-.modal .seccion-detalles h5 {
-  margin: 0 0 14px;
+.modal-detalles .seccion-detalles h5 {
+  margin: 0 0 4px;
   color: #B62A2D;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.7px;
 }
 
-.modal .descripcion-detalle {
+.modal-detalles .descripcion-detalle {
   margin: 0;
-  padding: 13px;
-  border-radius: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
   background: #F8F8F8;
   color: #555555;
-  font-size: 14px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1834,57 +1816,33 @@ h2 {
 .rejilla-detalles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 8px;
 }
 
 .dato-detalle {
   min-width: 0;
-  padding: 12px;
+  padding: 6px 10px;
   border: 1px solid #EEEEEE;
-  border-radius: 9px;
+  border-radius: 7px;
   background: #FFFFFF;
 }
 
 .dato-detalle > span:first-child {
   color: #888888;
-  font-size: 12px;
+  font-size: 11px;
 }
 
-.modal .dato-detalle p {
-  margin: 7px 0 0;
+.modal-detalles .dato-detalle p {
+  margin: 2px 0 0;
   color: #333333;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.lista-criterios {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.criterio-detalle {
-  padding: 12px;
-  border: 1px solid #EEEEEE;
-  border-radius: 9px;
-  background: #FFFFFF;
-}
-
-.criterio-detalle strong {
-  color: #333333;
-  font-size: 13px;
-}
-
-.modal .criterio-detalle p {
-  margin: 7px 0 0;
-  color: #666666;
-  font-size: 13px;
-}
-
 .estatus-detalle {
   display: inline-block;
-  padding: 5px 9px;
+  padding: 3px 7px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: 600;
@@ -1895,43 +1853,31 @@ h2 {
   color: #237442;
 }
 
-.pie-modal {
-  display: flex;
-  justify-content: flex-end;
-  padding: 18px 24px;
-  background: #FAFAFA;
-}
-
 .pie-modal .btn-guardar {
-  min-width: 100px;
+  min-width: 90px;
+  padding: 6px 14px;
+  font-size: 13px;
 }
 
 @media (max-width: 520px) {
   .modal-detalles {
-    max-height: 90vh;
+    max-height: 95vh;
   }
-
-  .modal-encabezado {
-    padding: 18px;
-  }
-
-  .resumen-sistema,
-  .seccion-detalles {
-    padding: 16px 18px;
-  }
-
   .resumen-sistema {
-    align-items: flex-start;
-    flex-direction: column;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Empuja el nombre a la izquierda y el ID a la derecha */
+    gap: 15px;
+    padding: 10px 16px !important;
+    background: #FAFAFA;
+    border-bottom: 1px solid #EEEEEE;
   }
-
   .rejilla-detalles {
     grid-template-columns: 1fr;
+    gap: 4px;
   }
 
-  .pie-modal {
-    padding: 16px 18px;
-  }
+  
 }
 
 /* ESTATUS DE HISTORIAS Y CRITERIOS */
