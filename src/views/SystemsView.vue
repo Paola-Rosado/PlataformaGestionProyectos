@@ -47,7 +47,7 @@ const puedeConsultar =
 
 // Nivel 3 y 4: puede modificar.
 const puedeModificar =
-  permisoSistemas >= 3 && permisoSistemas <= 4
+  permisoSistemas === 4
 
 // Nivel 4: puede agregar.
 const puedeAgregar =
@@ -1127,37 +1127,36 @@ function guardarSistema() {
         aria-modal="true"
         aria-labelledby="titulo-detalles"
       >
-        <!-- Encabezado -->
+      <!-- Encabezado: logo, nombre, ID y botón cerrar -->
         <div class="modal-encabezado">
+
           <div class="icono-detalles">
             <MonitorCog :size="26" />
           </div>
 
           <div class="titulo-detalles">
-            <h3 id="titulo-detalles">Detalles del sistema</h3>
-            <p>Información general del registro</p>
-          </div>
-
-          <button
-            type="button"
-            class="btn-cerrar-modal"
-            aria-label="Cerrar detalles"
-            @click="cerrarDetalle"
-          >
-            ×
-          </button>
-        </div>
-
-        <!-- Nombre e ID -->
-        <div class="resumen-sistema">
-          <div>
             <span class="etiqueta-detalle">NOMBRE DEL SISTEMA</span>
-            <h4>{{ sistemaSeleccionado.nombre }}</h4>
+
+            <h3 id="titulo-detalles">
+              {{ sistemaSeleccionado.nombre }}
+            </h3>
           </div>
 
-          <span class="id-sistema">
-            ID: {{ sistemaSeleccionado.id }}
-          </span>
+          <div class="acciones-encabezado">
+            <span class="id-sistema">
+              ID: {{ sistemaSeleccionado.id }}
+            </span>
+
+            <button
+              type="button"
+              class="btn-cerrar-modal"
+              aria-label="Cerrar detalles"
+              @click="cerrarDetalle"
+            >
+              ×
+            </button>
+          </div>
+
         </div>
 
         <!-- Descripción -->
@@ -1169,21 +1168,18 @@ function guardarSistema() {
         </div>
 
         <!-- Responsable -->
-        <div class="seccion-detalles">
-          <h5>Responsable</h5>
+        <!-- Responsable -->
+          <div class="seccion-detalles">
+            <h5>Responsable</h5>
 
-          <div class="rejilla-detalles">
-            <div class="dato-detalle">
+            <div class="dato-detalle responsable-completo">
               <span>Nombre completo</span>
-              <p>{{ sistemaSeleccionado.nombreResponsable }}</p>
-            </div>
-
-            <div class="dato-detalle">
-              <span>Correo electrónico</span>
-              <p>{{ sistemaSeleccionado.correoResponsable }}</p>
+              <p>
+                {{ sistemaSeleccionado.nombreResponsable }}
+                ({{ sistemaSeleccionado.correoResponsable }})
+              </p>
             </div>
           </div>
-        </div>
 
         <!-- Fechas -->
         <div class="seccion-detalles">
@@ -1816,10 +1812,14 @@ Permite adaptar el contenido a pantallas pequeñas.
    ========================================= */
 
 .modal-detalles {
-  max-width: 650px;
-  padding: 0;
-  border-radius: 16px;
-  overflow-x: hidden;
+  width: 100%;
+  max-width: 540px;
+  max-height: 98vh;
+  padding: 10px 16px !important;
+  overflow-y: hidden !important;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* Encabezado */
@@ -1827,7 +1827,7 @@ Permite adaptar el contenido a pantallas pequeñas.
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 24px;
+  padding: 10px 16px !important;
   border-bottom: 1px solid #EEEEEE;
 }
 
@@ -1848,15 +1848,25 @@ Permite adaptar el contenido a pantallas pequeñas.
   min-width: 0;
 }
 
-.modal .titulo-detalles h3 {
-  margin: 0 0 5px;
-  font-size: 20px;
+.modal-detalles .titulo-detalles h3 {
+  margin: 2 0 0px;
+  font-size: 17px;
+  overflow-wrap: anywhere;
 }
 
-.modal .titulo-detalles p {
+.modal-detalles .titulo-detalles p {
   margin: 0;
   color: #777777;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+/* ID y botón de cerrar alineados a la derecha */
+.acciones-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .btn-cerrar-modal {
@@ -1881,7 +1891,7 @@ Permite adaptar el contenido a pantallas pequeñas.
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-  padding: 22px 24px;
+  padding: 10px 16px;
   background: #FAFAFA;
   border-bottom: 1px solid #EEEEEE;
 }
@@ -1894,7 +1904,7 @@ Permite adaptar el contenido a pantallas pequeñas.
 }
 
 .resumen-sistema h4 {
-  margin: 7px 0 0;
+  margin: 3px 0 0;
   color: #222223;
   font-size: 19px;
   overflow-wrap: anywhere;
@@ -1912,25 +1922,26 @@ Permite adaptar el contenido a pantallas pequeñas.
 
 /* Secciones */
 .seccion-detalles {
-  padding: 18px 24px;
+  padding: 8px 16px !important;
   border-bottom: 1px solid #EEEEEE;
+  margin-bottom: 0 !important;
 }
 
 .modal .seccion-detalles h5 {
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   color: #B62A2D;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.7px;
 }
 
 .modal .descripcion-detalle {
   margin: 0;
-  padding: 13px;
+  padding: 6px 10px;
   border-radius: 8px;
   background: #F8F8F8;
   color: #555555;
-  font-size: 14px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1939,14 +1950,14 @@ Permite adaptar el contenido a pantallas pequeñas.
 .rejilla-detalles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 8px;
 }
 
 .dato-detalle {
   min-width: 0;
-  padding: 12px;
+  padding: 6px 10px;
   border: 1px solid #EEEEEE;
-  border-radius: 9px;
+  border-radius: 7px;
   background: #FFFFFF;
 }
 
@@ -1956,9 +1967,9 @@ Permite adaptar el contenido a pantallas pequeñas.
 }
 
 .modal .dato-detalle p {
-  margin: 7px 0 0;
+  margin: 2px 0 0;
   color: #333333;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -1996,12 +2007,14 @@ Permite adaptar el contenido a pantallas pequeñas.
 .pie-modal {
   display: flex;
   justify-content: flex-end;
-  padding: 18px 24px;
+  padding: 10px 16px !important;
   background: #FAFAFA;
 }
 
 .pie-modal .btn-guardar {
   min-width: 100px;
+  font-size: 13px;
+  padding: 6px 14px;
 }
 
 /* Adaptación a celulares */

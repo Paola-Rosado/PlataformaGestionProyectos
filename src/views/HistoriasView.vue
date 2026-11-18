@@ -61,9 +61,9 @@ const puedeConsultar =
 const puedeModificar =
   permisoHistorias >= 3 && permisoHistorias <= 4
 
-// Nivel 4: puede agregar.
+// Nivel 3 y 4: puede agregar.
 const puedeAgregar =
-  permisoHistorias === 4
+  permisoHistorias >= 3 && permisoHistorias <= 4
 
 // Nivel 4: puede activar y desactivar.
 const puedeCambiarEstado =
