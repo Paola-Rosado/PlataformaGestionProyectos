@@ -28,6 +28,35 @@ import {
 import { SistemaActivo } from '../router/index'
 import { useSistemas } from '../composables/UseSistemas.ts'
 
+// ======================================================
+// CONTROL DE PERMISOS DEL USUARIO
+// ======================================================
+
+/// Recuperar la sesión del usuario.
+const usuarioSesion = JSON.parse(
+  localStorage.getItem('user') || 'null'
+)
+
+// Obtener el permiso del módulo Sistemas.
+const permisoSistemas =
+  usuarioSesion?.permisos?.sistemas ?? 1
+
+// Nivel 2, 3 y 4: puede consultar.
+const puedeConsultar =
+  permisoSistemas >= 2 && permisoSistemas <= 4
+
+// Nivel 3 y 4: puede modificar.
+const puedeModificar =
+  permisoSistemas >= 3 && permisoSistemas <= 4
+
+// Nivel 4: puede agregar.
+const puedeAgregar =
+  permisoSistemas === 4
+
+// Nivel 4: puede activar y desactivar.
+const puedeCambiarEstado =
+  permisoSistemas === 4
+
 /*
 ==========================================================
 1. DEFINICIÓN DE LOS DATOS DE UN SISTEMA
@@ -183,6 +212,15 @@ function mostrarNotificacion(
 
 // Abrir el formulario para registrar un sistema.
 function agregarSistema() {
+
+  if (!puedeAgregar) {
+    mostrarNotificacion(
+      'No tienes permiso para agregar sistemas.',
+      'error'
+    )
+    return
+  }
+
   mensaje.value = ''
   limpiarFormulario()
   idEnEdicion.value = null
@@ -210,6 +248,13 @@ function cerrarDetalle() {
 
 // Cargar los datos para modificar un sistema.
 function modificarSistema(sistema: Sistema) {
+  if (!puedeModificar) {
+  mostrarNotificacion(
+    'No tienes permiso para modificar sistemas.',
+    'error'
+  )
+  return
+}
   mensaje.value = ''
   idEnEdicion.value = sistema.id
   
@@ -246,6 +291,14 @@ Un sistema desactivado no se puede seleccionar. Si estaba seleccionado,
 se limpia la selección.
 */
 function cambiarEstadoSistema(sistema: Sistema) {
+   if (!puedeCambiarEstado) {
+    mostrarNotificacion(
+      'No tienes permiso para activar o desactivar sistemas.',
+      'error'
+    )
+    return
+  }
+
   sistema.activo = !sistema.activo
 
   if (!sistema.activo && sistemaSeleccionadoGlobal.value?.id === sistema.id) {
@@ -311,6 +364,24 @@ Los datos todavía no se guardan en una base de datos.
 
 // Registrar un sistema nuevo o guardar sus modificaciones.
 function guardarSistema() {
+  // Si es un registro nuevo, necesita nivel 4.
+  if (idEnEdicion.value === null && !puedeAgregar) {
+    mostrarNotificacion(
+      'No tienes permiso para agregar sistemas.',
+      'error'
+    )
+    return
+  }
+
+  // Si está modificando, necesita nivel 3 o 4.
+  if (idEnEdicion.value !== null && !puedeModificar) {
+    mostrarNotificacion(
+      'No tienes permiso para modificar sistemas.',
+      'error'
+    )
+    return
+  }
+
   if (
     !formulario.value.nombre.trim() ||
     !formulario.value.descripcion.trim() ||
@@ -410,6 +481,7 @@ function guardarSistema() {
   mostrarFormulario.value = false
 }
 
+
 </script>
 
 
@@ -488,6 +560,7 @@ function guardarSistema() {
           <!-- BOTÓN AGREGAR SISTEMA -->
 
           <button
+            v-if="puedeAgregar"
             type="button"
             class="btn-agregar"
             @click="agregarSistema"
@@ -654,6 +727,7 @@ function guardarSistema() {
 
                     <!-- MODIFICAR -->
                     <button
+                      v-if="puedeModificar"
                       type="button"
                       class="btn-icono btn-editar"
                       title="Modificar"
@@ -665,6 +739,7 @@ function guardarSistema() {
 
                     <!-- ACTIVAR / DESACTIVAR (interruptor ON / OFF) -->
                     <button
+                       v-if="puedeCambiarEstado"
                       type="button"
                       class="switch"
                       :class="{ activo: sistema.activo }"

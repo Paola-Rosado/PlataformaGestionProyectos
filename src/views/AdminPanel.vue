@@ -442,7 +442,11 @@ const cerrarSesion = (): void => {
 
 .sidebar {
   width: 285px;
-  min-height: 100vh;
+  height: 100vh;
+
+  position: fixed;
+  top: 0;
+  left: 0;
 
   display: flex;
   flex-direction: column;
@@ -714,7 +718,8 @@ const cerrarSesion = (): void => {
 ====================================================== */
 
 .contenido {
-  flex: 1;
+  width: calc(100% - 285px);
+  margin-left: 285px;
 
   min-width: 0;
 }
@@ -804,8 +809,16 @@ const cerrarSesion = (): void => {
   }
 
   .sidebar {
+    position: relative;
+
     width: 100%;
+    height: auto;
     min-height: auto;
+  }
+
+  .contenido {
+    width: 100%;
+    margin-left: 0;
   }
 
   .sidebar-footer {

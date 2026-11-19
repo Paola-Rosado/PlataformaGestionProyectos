@@ -481,7 +481,7 @@ function cambiarEstado(usuario: Usuario) {
 
             <div class="campo">
               <label for="correo">
-                Correo electrónico (nombre de usuario)
+                Correo electrónico
               </label>
 
               <input
@@ -546,7 +546,7 @@ function cambiarEstado(usuario: Usuario) {
             <!-- ROL (SEGÚN LA METODOLOGÍA DEL SISTEMA) -->
             <div class="campo">
               <label for="rol">
-                Rol ({{ sistemaSeleccionadoGlobal?.metodologia }})
+                Rol
               </label>
               <select id="rol" v-model="formulario.rol" required>
                 <option value="">Selecciona un rol</option>

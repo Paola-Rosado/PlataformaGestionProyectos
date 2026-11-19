@@ -59,10 +59,10 @@ const passwordVacio = ref(false)
 
 /*
   PERMISOS:
-
-  1 = Desactivado
-  2 = Lectura
-  3 = Escritura
+  1 = Sin acceso
+  2 = Solo consultar
+  3 = Consultar y modificar
+  4 = Acceso completo
 
   Cada usuario tiene:
   - Nombre
@@ -81,30 +81,30 @@ const usuarios = [
    {
     correo: 'paola@gmail.com',
     password: '1234',
-    codigo: 'admin',
-    isAdmin: true,
-    Permisos: {
-      Sistemas: 3,
-      Usuarios: 3,
-      Roles: 3,
-      Historias: 3,
+    rol: 'Administrador',
+
+    // Tiene acceso completo al sistema.
+    permisos: {
+      sistemas: 4,
+      usuarios: 4,
+      historias: 4
     }
   },
 
   // ----------------------------------------------------
-  // INVITADO
+  // INTERNO
   // ----------------------------------------------------
   {
     nombre: 'Ruby Sosa',
     correo: 'Rubyl@gmail.com',
     password: '5678',
-    codigo: 'admin',
-    isAdmin: false,
-    Permisos: {
-      Sistemas: 3,
-      Usuarios: 1,
-      Roles: 2,
-      Historias: 1,
+    rol: 'Interno',
+
+    // Tiene permisos limitados.
+    permisos: {
+      sistemas: 3,
+      usuarios: 1,
+      historias: 3
     }
   },
 
@@ -112,15 +112,31 @@ const usuarios = [
   // EXTERNO - MONSERRATH
   // ----------------------------------------------------
   {
-    correo: 'Monsen@gmail.com',
-    password: 'admin123',
-    codigo: 'admin',
-    isAdmin: false,
-    Permisos: {
-      Sistemas: 3,
-      Usuarios: 1,
-      Roles: 1,
-      Historias: 2,
+    nombre: 'Monserrath Dzul',
+    correo: 'monserrath@gmail.com',
+    password: '5678',
+    rol: 'Externo',
+
+    permisos: {
+      sistemas: 2,
+      usuarios: 1,
+      historias: 2
+    }
+  },
+
+  // ----------------------------------------------------
+  // EXTERNO - GABRIELA
+  // ----------------------------------------------------
+  {
+    nombre: 'Gabriela Cuellar',
+    correo: 'gabriela@gmail.com',
+    password: '9012',
+    rol: 'Externo',
+
+    permisos: {
+      sistemas: 1,
+      usuarios: 1,
+      historias: 2
     }
   }
 
@@ -148,7 +164,156 @@ const usuarios = [
   // Los campos ya están llenos
   camposVacios.value = false
 
-  // Buscar si existe el correo
+  correoVacio.value = false
+
+  passwordVacio.value = false
+}
+
+
+// ======================================================
+// 12. SELECCIONAR USUARIO ESPECÍFICO
+// ======================================================
+
+/**
+ * seleccionarUsuario()
+ *
+ * Se utiliza para seleccionar usuarios externos
+ * que comparten el mismo rol.
+ *
+ * Completa automáticamente el correo y contraseña.
+ */
+const seleccionarUsuario = (
+  usuario: typeof usuarios[number]
+): void => {
+
+  // Coloca las credenciales.
+  correo.value = usuario.correo
+
+  password.value = usuario.password
+
+  // Limpia errores anteriores.
+  limpiarErrores()
+
+  // Oculta las opciones de usuarios externos.
+  mostrarExternos.value = false
+}
+
+
+// ======================================================
+// 13. RELLENAR CREDENCIALES SEGÚN ROL
+// ======================================================
+
+/**
+ * llenarCredenciales()
+ *
+ * Busca un usuario por su rol.
+ *
+ * Se utiliza para:
+ * - Administrador.
+ * - Interno.
+ */
+const llenarCredenciales = (rol: string): void => {
+
+  // Busca el primer usuario con ese rol.
+  const usuario = usuarios.find(
+    usuario => usuario.rol === rol
+  )
+
+  // Si encuentra al usuario.
+  if (usuario) {
+
+    // Completa los campos.
+    correo.value = usuario.correo
+
+    password.value = usuario.password
+
+    // Limpia los errores.
+    limpiarErrores()
+
+    // Oculta las opciones externas.
+    mostrarExternos.value = false
+  }
+}
+
+
+// ======================================================
+// 14. MOSTRAR USUARIOS EXTERNOS
+// ======================================================
+
+/**
+ * mostrarUsuariosExternos()
+ *
+ * Muestra u oculta los botones correspondientes
+ * a Monserrath y Gabriela.
+ */
+const mostrarUsuariosExternos = (): void => {
+
+  // Cambia el estado del menú.
+  mostrarExternos.value = !mostrarExternos.value
+
+  // Limpia errores anteriores.
+  limpiarErrores()
+}
+
+
+// ======================================================
+// 15. INICIAR SESIÓN
+// ======================================================
+
+/**
+ * iniciarSesion()
+ *
+ * Es la función principal del formulario.
+ *
+ * Realiza los siguientes pasos:
+ *
+ * 1. Limpia errores anteriores.
+ * 2. Verifica campos vacíos.
+ * 3. Valida el CAPTCHA.
+ * 4. Comprueba correo y contraseña.
+ * 5. Guarda los datos del usuario.
+ * 6. Redirige al panel.
+ */
+const iniciarSesion = (): void => {
+
+  // ----------------------------------------------------
+  // PASO 1. LIMPIAR ERRORES
+  // ----------------------------------------------------
+
+  limpiarErrores()
+
+  // ----------------------------------------------------
+  // PASO 2. VALIDAR CAMPOS VACÍOS
+  // ----------------------------------------------------
+
+  correoVacio.value = correo.value.trim() === ''
+
+  passwordVacio.value = password.value.trim() === ''
+
+  // Si algún campo está vacío, detiene el proceso.
+  if (correoVacio.value || passwordVacio.value) {
+
+    camposVacios.value = true
+
+    return
+  }
+
+  // ----------------------------------------------------
+  // PASO 3. VALIDAR CAPTCHA
+  // ----------------------------------------------------
+
+  // Si la respuesta está vacía o es incorrecta,
+  // no permite continuar con el inicio de sesión.
+  if (!validarCaptcha()) {
+    return
+  }
+
+  // ----------------------------------------------------
+  // PASO 4. BUSCAR USUARIO
+  // ----------------------------------------------------
+
+  // Busca un usuario que tenga el correo y
+  // contraseña proporcionados.
   const usuarioEncontrado = usuarios.find(
     usuario => usuario.correo === correo.value
   )
@@ -432,12 +597,12 @@ const usuarios = [
             Administrador
           </button>
 
-          <!-- INVITADO -->
+          <!-- INTERNO -->
           <button
             type="button"
-            @click="llenarCredenciales('Invitado')"
+            @click="llenarCredenciales('Interno')"
           >
-            Invitado
+            Interno
           </button>
 
           <!-- EXTERNO -->

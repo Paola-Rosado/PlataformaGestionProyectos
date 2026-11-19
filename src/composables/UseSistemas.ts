@@ -1,17 +1,19 @@
+
 /*
   LISTADO DE SISTEMAS COMPARTIDO
 
-  El listado vive aquí (y no dentro de SystemsView) para que
-  Usuarios y el resto de módulos puedan consultarlo, y para poder
-  seleccionar un sistema por defecto desde cualquier vista.
+  El listado vive aquí para que Usuarios y el resto de módulos
+  puedan consultarlo y seleccionar un sistema por defecto.
 
-  IMPORTANTE: por ahora los datos viven en memoria.
+  Mientras no haya base de datos, los sistemas se guardan
+  en el navegador (ver UseAlmacenamiento.ts).
 */
-import { ref } from 'vue'
+
+import { refPersistente } from './UseAlmacenamiento'
 import type { Sistema } from '../interfaces/Sistema'
 import { useAccesos } from './UseAccesos'
 
-const sistemas = ref<Sistema[]>([
+const sistemas = refPersistente<Sistema>('sistemas', [
   {
     id: 1,
     nombre: 'Sistema de Gestión Escolar',
@@ -53,16 +55,17 @@ const sistemas = ref<Sistema[]>([
   }
 ])
 
-// La selección por defecto se aplica una sola vez por carga de la página,
-// para no volver a marcar un sistema que el usuario desmarcó a propósito.
+// La selección por defecto se aplica una sola vez por carga de página.
 let defectoAplicado = false
 
-// Convierte "dd/mm/aaaa hh:mm" (con o sin a. m./p. m.) en un número comparable.
+// Convierte dd/mm/aaaa hh:mm en una fecha comparable.
 function marcaDeFecha(texto: string): number {
   const f = texto.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+
   if (!f) return 0
 
-  const h = texto.match(/(\d{1,2}):(\d{2})[\s\u202f\u00a0]*([ap])?/i)
+  const h = texto.match(/(\d{1,2}):(\d{2})(?:\s*([ap])\.?\s*m\.?)?/i)
+
   let horas = h ? Number(h[1]) : 0
   const minutos = h ? Number(h[2]) : 0
   const sufijo = h?.[3]?.toLowerCase()
@@ -70,38 +73,50 @@ function marcaDeFecha(texto: string): number {
   if (sufijo === 'p' && horas < 12) horas += 12
   if (sufijo === 'a' && horas === 12) horas = 0
 
-  return new Date(Number(f[3]), Number(f[2]) - 1, Number(f[1]), horas, minutos).getTime()
+  return new Date(
+    Number(f[3]),
+    Number(f[2]) - 1,
+    Number(f[1]),
+    horas,
+    minutos
+  ).getTime()
 }
 
 export function useSistemas() {
   const { usuarios } = useAccesos()
 
-  // Sistema ACTIVO con la actualización más reciente (desempata por fecha de inicio).
+  // Sistema activo con la actualización más reciente.
   function sistemaMasReciente(): Sistema | null {
-    const ordenados = sistemas.value.filter(s => s.activo).sort((a, b) =>
-      marcaDeFecha(b.fechaActualizacion) - marcaDeFecha(a.fechaActualizacion) ||
-      b.fechaInicio.localeCompare(a.fechaInicio) ||
-      b.id - a.id
-    )
+    const ordenados = sistemas.value
+      .filter(s => s.activo)
+      .sort((a, b) =>
+        marcaDeFecha(b.fechaActualizacion) -
+        marcaDeFecha(a.fechaActualizacion) ||
+        b.fechaInicio.localeCompare(a.fechaInicio) ||
+        b.id - a.id
+      )
+
     return ordenados[0] ?? null
   }
 
   /*
-    Selecciona un sistema por defecto para ahorrar clics:
-    - Administrador: el sistema más reciente.
-    - Cualquier otro usuario: el sistema donde está dado de alta
-      (por su correo). Si no está en ninguno, el más reciente.
+    Selecciona un sistema por defecto:
+    - Administrador: sistema más reciente.
+    - Otros usuarios: sistema donde están registrados.
+    - Si no tienen sistema asignado: sistema más reciente.
   */
   function aplicarSistemaPorDefecto(
     actual: Sistema | null,
     seleccionar: (sistema: Sistema) => void
   ) {
     if (defectoAplicado) return
+
     defectoAplicado = true
 
     if (actual || sistemas.value.length === 0) return
 
     let sesion: { correo?: string; rol?: string } | null = null
+
     try {
       const guardado = localStorage.getItem('user')
       sesion = guardado ? JSON.parse(guardado) : null
@@ -109,19 +124,42 @@ export function useSistemas() {
       sesion = null
     }
 
-    let elegido: Sistema | null = null
+    // Primero intenta recuperar el sistema guardado.
+    const idGuardado = Number(
+      localStorage.getItem('plataforma:sistemaActivo')
+    )
 
-    if (sesion?.rol !== 'Administrador' && sesion?.correo) {
+    let elegido: Sistema | null =
+      sistemas.value.find(
+        s => s.id === idGuardado && s.activo
+      ) ?? null
+
+    // Para usuarios que no son administradores,
+    // busca el sistema al que pertenecen.
+    if (
+      !elegido &&
+      sesion?.rol !== 'Administrador' &&
+      sesion?.correo
+    ) {
       const correo = sesion.correo.toLowerCase()
+
       const membresia = usuarios.value.find(
-        u => u.activo && u.correo.toLowerCase() === correo
+        u =>
+          u.activo &&
+          u.correo.toLowerCase() === correo
       )
-      elegido = sistemas.value.find(s => s.id === membresia?.sistemaId && s.activo) ?? null
+
+      elegido = sistemas.value.find(
+        s => s.id === membresia?.sistemaId && s.activo
+      ) ?? null
     }
 
+    // Si no encontró ninguno, selecciona el más reciente.
     elegido = elegido ?? sistemaMasReciente()
 
-    if (elegido) seleccionar(elegido)
+    if (elegido) {
+      seleccionar(elegido)
+    }
   }
 
   return {

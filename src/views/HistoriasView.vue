@@ -22,10 +22,14 @@ import { SistemaActivo } from '../router/index'
 import { useAccesos } from '../composables/UseAccesos'
 import { useSistemas } from '../composables/UseSistemas'
 import type { Usuario } from '../interfaces/Usuario'
+import { refPersistente } from '../composables/UseAlmacenamiento'
 import type {
   HistoriaUsuario,
-  CriterioAceptacion
+  CriterioAceptacion,
+  EstatusAvance
 } from '../interfaces/HistoriaUsuario'
+
+
 
 const MAX_TEXTO = 300
 const MAX_AREA = 500
@@ -40,24 +44,56 @@ aplicarSistemaPorDefecto(sistemaSeleccionadoGlobal.value, seleccionarSistema)
 
 const { usuarios, usuariosDeSistema, nombreCompleto } = useAccesos()
 
+// Control de permisos del usuario
+const usuarioSesion = JSON.parse(
+  localStorage.getItem('user') || 'null'
+)
+
+// Obtener el permiso del módulo Historias.
+const permisoHistorias =
+  usuarioSesion?.permisos?.historias ?? 1
+
+// Nivel 2, 3 y 4: puede consultar.
+const puedeConsultar =
+  permisoHistorias >= 2 && permisoHistorias <= 4
+
+// Nivel 3 y 4: puede modificar.
+const puedeModificar =
+  permisoHistorias >= 3 && permisoHistorias <= 4
+
+// Nivel 4: puede agregar.
+const puedeAgregar =
+  permisoHistorias === 4
+
+// Nivel 4: puede activar y desactivar.
+const puedeCambiarEstado =
+  permisoHistorias === 4
+
 function irASistemas() {
   router.push('/panel/sistemas')
 }
 
 // Control de vistas y mensajes
 const mensaje = ref('')
-const tipoMensaje = ref<'exito' | 'error'>('exito')
+const tipoMensaje = ref<'exito' | 'error' | 'advertencia'>('exito')
 const mostrarFormulario = ref(false)
+// Controla la ventana de detalles de la historia.
+const historiaSeleccionada = ref<HistoriaUsuario | null>(null)
 const idEnEdicion = ref<number | null>(null)
 const fechaActualizacion = ref('')
 
-function mostrarNotificacion(texto: string, tipo: 'exito' | 'error' = 'exito') {
+function mostrarNotificacion(
+  texto: string,
+  tipo: 'exito' | 'error' | 'advertencia' = 'exito'
+) {
   mensaje.value = texto
   tipoMensaje.value = tipo
 }
 
-// Listado de historias de usuario (datos de ejemplo)
-const historias = ref<HistoriaUsuario[]>([
+
+// Listado persistente de historias de usuario.
+// Si no existen registros guardados, utiliza los datos de ejemplo.
+const historias = refPersistente<HistoriaUsuario>('historias', [
   {
     id: 1,
     sistemaId: 1,
@@ -65,7 +101,7 @@ const historias = ref<HistoriaUsuario[]>([
     descripcion: 'Permitir inicio de sesión mediante credenciales.',
     usuarioId: 2,
     prioridad: 'Alta',
-    estatus: 'En desarrollo',
+    estatus: 'En proceso',
     fechaCaptura: '01/11/2026 08:30',
     fechaActualizacion: '01/11/2026 08:30',
     activo: true,
@@ -73,7 +109,8 @@ const historias = ref<HistoriaUsuario[]>([
       {
         id: 1,
         nombre: 'Inicio de sesión válido',
-        descripcion: 'El usuario accede al panel al escribir credenciales correctas.'
+        descripcion: 'El usuario accede al panel al escribir credenciales correctas.',
+        estatus: 'En proceso'
       }
     ]
   },
@@ -84,7 +121,7 @@ const historias = ref<HistoriaUsuario[]>([
     descripcion: 'Generar reporte en formato PDF de los registros.',
     usuarioId: 1,
     prioridad: 'Media',
-    estatus: 'Planeación',
+    estatus: 'No iniciado',
     fechaCaptura: '01/11/2026 09:15',
     fechaActualizacion: '01/11/2026 09:15',
     activo: true,
@@ -118,13 +155,37 @@ function siguienteId(lista: { id: number }[]) {
   return lista.reduce((mayor, item) => Math.max(mayor, item.id), 0) + 1
 }
 
+// Opciones de estatus (historias y criterios). Por defecto: 'No iniciado'.
+const ESTATUS_AVANCE: EstatusAvance[] = ['No iniciado', 'En proceso', 'Finalizado']
+
+// Cantidad de criterios de aceptación que aún no están finalizados.
+function criteriosPendientes(historia: HistoriaUsuario) {
+  return historia.criterios.filter(c => c.estatus !== 'Finalizado').length
+}
+
+// Advertencia cuando se intenta finalizar una historia con criterios pendientes.
+function avisoPendientes(historia: HistoriaUsuario, pendientes: number) {
+  return `No se puede finalizar "${historia.nombre}": tiene ${pendientes} ` +
+    (pendientes === 1 ? 'criterio de aceptación pendiente' : 'criterios de aceptación pendientes') +
+    '. Finaliza todos los criterios antes de cerrar la historia.'
+}
+
+// Clase de color según el estatus.
+function claseEstatus(estatus: EstatusAvance) {
+  return estatus === 'Finalizado'
+    ? 'sel-finalizado'
+    : estatus === 'En proceso'
+      ? 'sel-en-proceso'
+      : 'sel-no-iniciado'
+}
+
 // Datos del formulario de historias
 const formulario = ref({
   nombre: '',
   descripcion: '',
   usuarioId: '' as number | '',
   prioridad: '' as '' | 'Alta' | 'Media' | 'Baja',
-  estatus: '' as '' | 'Planeación' | 'En desarrollo' | 'En pruebas' | 'Finalizado'
+  estatus: 'No iniciado' as EstatusAvance
 })
 
 /*
@@ -152,7 +213,7 @@ function limpiarFormulario() {
     descripcion: '',
     usuarioId: '',
     prioridad: '',
-    estatus: ''
+    estatus: 'No iniciado'
   }
 }
 
@@ -168,6 +229,10 @@ function fechaActual() {
 
 // Abrir formulario para agregar
 function agregarHistoria() {
+  if (!puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar historias.', 'error')
+  return
+}
   mensaje.value = ''
   limpiarFormulario()
   idEnEdicion.value = null
@@ -194,6 +259,16 @@ function guardarHistoria() {
   const sistema = sistemaSeleccionadoGlobal.value
   if (!sistema) return
 
+  if (idEnEdicion.value === null && !puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar historias.', 'error')
+  return
+  }
+
+  if (idEnEdicion.value !== null && !puedeModificar) {
+    mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
+    return
+  }
+
   const nombre = formulario.value.nombre.trim()
   const descripcion = formulario.value.descripcion.trim()
   const { usuarioId, prioridad, estatus } = formulario.value
@@ -213,6 +288,16 @@ function guardarHistoria() {
 
   const fecha = fechaActual()
   const existente = historiaEnEdicion.value
+
+  // No se puede finalizar una historia con criterios pendientes.
+  if (existente && estatus === 'Finalizado') {
+    const pendientes = criteriosPendientes(existente)
+
+    if (pendientes > 0) {
+      mostrarNotificacion(avisoPendientes(existente, pendientes), 'advertencia')
+      return
+    }
+  }
 
   if (existente) {
     // Se conservan sus criterios de aceptación.
@@ -256,11 +341,22 @@ function guardarHistoria() {
   )
 }
 
+// Mostrar los detalles de una historia de usuario.
 function verDetalle(historia: HistoriaUsuario) {
-  mostrarNotificacion(`Viendo detalles de: ${historia.nombre}`)
+  mensaje.value = ''
+  historiaSeleccionada.value = historia
+}
+
+// Cerrar los detalles.
+function cerrarDetalle() {
+  historiaSeleccionada.value = null
 }
 
 function modificarHistoria(historia: HistoriaUsuario) {
+  if (!puedeModificar) {
+  mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
+  return
+}
   mensaje.value = ''
   idEnEdicion.value = historia.id
   fechaActualizacion.value = historia.fechaActualizacion || ''
@@ -278,6 +374,10 @@ function modificarHistoria(historia: HistoriaUsuario) {
 
 // Las historias no se eliminan: solo se desactivan (interruptor ON / OFF).
 function cambiarEstadoHistoria(historia: HistoriaUsuario) {
+  if (!puedeCambiarEstado) {
+  mostrarNotificacion('No tienes permiso para activar o desactivar historias.', 'error')
+  return
+}
   historia.activo = !historia.activo
 
   mostrarNotificacion(
@@ -285,6 +385,34 @@ function cambiarEstadoHistoria(historia: HistoriaUsuario) {
       ? `Historia "${historia.nombre}" activada.`
       : `Historia "${historia.nombre}" desactivada.`
   )
+}
+
+// Cambia el estatus desde la columna de acciones del listado.
+function cambiarEstatusHistoria(historia: HistoriaUsuario, evento: Event) {
+  const selector = evento.target as HTMLSelectElement
+  const nuevo = selector.value as EstatusAvance
+
+  if (!puedeModificar) {
+    selector.value = historia.estatus
+    mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
+    return
+  }
+
+  // No se permite finalizar si hay criterios pendientes: se regresa el
+  // selector al estatus anterior y se muestra una advertencia.
+  if (nuevo === 'Finalizado') {
+    const pendientes = criteriosPendientes(historia)
+
+    if (pendientes > 0) {
+      selector.value = historia.estatus
+      mostrarNotificacion(avisoPendientes(historia, pendientes), 'advertencia')
+      return
+    }
+  }
+
+  historia.estatus = nuevo
+  historia.fechaActualizacion = fechaActual()
+  mostrarNotificacion(`Historia "${historia.nombre}" cambió a "${nuevo}".`)
 }
 
 /*
@@ -300,20 +428,30 @@ const errorCriterio = ref('')
 
 const formularioCriterio = ref({
   nombre: '',
-  descripcion: ''
+  descripcion: '',
+  estatus: 'No iniciado' as EstatusAvance
 })
 
 function abrirModalCriterio() {
-  formularioCriterio.value = { nombre: '', descripcion: '' }
+  if (!puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
+  return
+}
+  formularioCriterio.value = { nombre: '', descripcion: '', estatus: 'No iniciado' }
   idCriterioEnEdicion.value = null
   errorCriterio.value = ''
   mostrarModalCriterio.value = true
 }
 
 function editarCriterio(criterio: CriterioAceptacion) {
+  if (!puedeModificar) {
+  mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
+  return
+}
   formularioCriterio.value = {
     nombre: criterio.nombre,
-    descripcion: criterio.descripcion
+    descripcion: criterio.descripcion,
+    estatus: criterio.estatus ?? 'No iniciado'
   }
   idCriterioEnEdicion.value = criterio.id
   errorCriterio.value = ''
@@ -331,8 +469,19 @@ function guardarCriterio() {
   const historia = historiaEnEdicion.value
   if (!historia) return
 
+  if (idCriterioEnEdicion.value === null && !puedeAgregar) {
+  mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
+  return
+  }
+
+  if (idCriterioEnEdicion.value !== null && !puedeModificar) {
+    mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
+    return
+  }
+
   const nombre = formularioCriterio.value.nombre.trim()
   const descripcion = formularioCriterio.value.descripcion.trim()
+  const estatus = formularioCriterio.value.estatus
 
   if (!nombre || !descripcion) {
     errorCriterio.value = 'Completa el nombre y la descripción.'
@@ -347,15 +496,33 @@ function guardarCriterio() {
 
   if (idCriterioEnEdicion.value !== null) {
     const criterio = historia.criterios.find(c => c.id === idCriterioEnEdicion.value)
-    if (criterio) Object.assign(criterio, { nombre, descripcion })
+    if (criterio) Object.assign(criterio, { nombre, descripcion, estatus })
     mostrarNotificacion('Criterio de aceptación modificado correctamente.')
   } else {
     historia.criterios.push({
       id: siguienteId(historia.criterios),
       nombre,
-      descripcion
+      descripcion,
+      estatus
     })
     mostrarNotificacion('Criterio de aceptación agregado correctamente.')
+  }
+
+  /*
+    Si la historia estaba finalizada y ahora tiene criterios pendientes
+    (por ejemplo, se agregó uno nuevo), se reabre en 'En proceso'.
+  */
+  if (historia.estatus === 'Finalizado' && criteriosPendientes(historia) > 0) {
+    const fecha = fechaActual()
+    historia.estatus = 'En proceso'
+    historia.fechaActualizacion = fecha
+    fechaActualizacion.value = fecha
+    formulario.value.estatus = 'En proceso'
+
+    mostrarNotificacion(
+      'La historia pasó a "En proceso" porque tiene criterios pendientes.',
+      'advertencia'
+    )
   }
 
   cerrarModalCriterio()
@@ -423,6 +590,7 @@ function guardarCriterio() {
 
           <!-- BOTÓN AGREGAR HISTORIA -->
           <button
+            v-if="puedeAgregar"
             type="button"
             class="btn-agregar"
             @click="agregarHistoria"
@@ -436,7 +604,7 @@ function guardarCriterio() {
           v-if="mensaje"
           class="mensaje"
           :class="tipoMensaje"
-          role="status"
+          :role="tipoMensaje === 'exito' ? 'status' : 'alert'"
         >
           <span>{{ mensaje }}</span>
           <button
@@ -458,6 +626,7 @@ function guardarCriterio() {
                 <th>Nombre del requerimiento</th>
                 <th>Fecha de captura</th>
                 <th>Quién lo capturó</th>
+                <th>Estatus</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -490,6 +659,27 @@ function guardarCriterio() {
                   <span v-else class="sin-asignar">—</span>
                 </td>
 
+                <!-- Estatus de la historia (no permite Finalizado con criterios pendientes) -->
+                <td>
+                  <select
+                    class="select-estatus"
+                    :class="claseEstatus(historia.estatus)"
+                    :value="historia.estatus"
+                    :disabled="!puedeModificar || !historia.activo"
+                    title="Cambiar estatus de la historia"
+                    aria-label="Estatus de la historia"
+                    @change="cambiarEstatusHistoria(historia, $event)"
+                  >
+                    <option
+                      v-for="opcion in ESTATUS_AVANCE"
+                      :key="opcion"
+                      :value="opcion"
+                    >
+                      {{ opcion }}
+                    </option>
+                  </select>
+                </td>
+
                 <td>
                   <div class="acciones-tabla">
                     <button
@@ -501,6 +691,7 @@ function guardarCriterio() {
                       <Eye :size="18" />
                     </button>
                     <button
+                      v-if="puedeModificar"
                       type="button"
                       class="btn-icono btn-editar"
                       title="Modificar"
@@ -510,6 +701,7 @@ function guardarCriterio() {
                     </button>
                     <!-- ACTIVAR / DESACTIVAR (interruptor ON / OFF) -->
                     <button
+                      v-if="puedeCambiarEstado"
                       type="button"
                       class="switch"
                       :class="{ activo: historia.activo }"
@@ -524,7 +716,7 @@ function guardarCriterio() {
               </tr>
 
               <tr v-if="historiasDelSistema.length === 0">
-                <td colspan="5" class="mensaje-vacio">
+                <td colspan="6" class="mensaje-vacio">
                   <div class="estado-vacio">
                     <h4>No existen historias de usuario registradas</h4>
                     <p>Presiona "+ Agregar historia" para registrar una nueva.</p>
@@ -552,7 +744,7 @@ function guardarCriterio() {
           v-if="mensaje"
           class="mensaje"
           :class="tipoMensaje"
-          role="status"
+          :role="tipoMensaje === 'exito' ? 'status' : 'alert'"
         >
           <span>{{ mensaje }}</span>
           <button
@@ -655,18 +847,23 @@ function guardarCriterio() {
 
           <!-- Estatus -->
           <div class="campo">
-            <label for="estatusHistoria">Status del sistema</label>
+            <label for="estatusHistoria">Estatus de la historia</label>
             <select
               id="estatusHistoria"
               v-model="formulario.estatus"
               required
             >
-              <option value="">Selecciona un estatus</option>
-              <option value="Planeación">Planeación</option>
-              <option value="En desarrollo">En desarrollo</option>
-              <option value="En pruebas">En pruebas</option>
-              <option value="Finalizado">Finalizado</option>
+              <option
+                v-for="opcion in ESTATUS_AVANCE"
+                :key="opcion"
+                :value="opcion"
+              >
+                {{ opcion }}
+              </option>
             </select>
+            <small class="ayuda-campo">
+              Para finalizar la historia, todos sus criterios de aceptación deben estar finalizados.
+            </small>
           </div>
 
           <!-- ================================================
@@ -684,6 +881,7 @@ function guardarCriterio() {
               </div>
 
               <button
+                v-if="puedeAgregar"
                 type="button"
                 class="btn-agregar"
                 @click="abrirModalCriterio"
@@ -699,6 +897,7 @@ function guardarCriterio() {
                     <th>No.</th>
                     <th>Nombre del criterio</th>
                     <th>Descripción</th>
+                    <th>Estatus</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -712,8 +911,14 @@ function guardarCriterio() {
                     <td><strong>{{ criterio.nombre }}</strong></td>
                     <td>{{ criterio.descripcion }}</td>
                     <td>
+                      <span class="chip-estatus" :class="claseEstatus(criterio.estatus)">
+                        {{ criterio.estatus }}
+                      </span>
+                    </td>
+                    <td>
                       <div class="acciones-tabla">
                         <button
+                          v-if="puedeModificar"
                           type="button"
                           class="btn-icono btn-editar"
                           title="Modificar criterio"
@@ -727,7 +932,7 @@ function guardarCriterio() {
                   </tr>
 
                   <tr v-if="historiaEnEdicion.criterios.length === 0">
-                    <td colspan="4" class="mensaje-vacio">
+                    <td colspan="5" class="mensaje-vacio">
                       <div class="estado-vacio">
                         <h4>Esta historia aún no tiene criterios de aceptación</h4>
                         <p>Presiona "+ Agregar criterio" para registrar el primero.</p>
@@ -759,6 +964,170 @@ function guardarCriterio() {
         </form>
       </div>
 
+    </div>
+
+        <!-- ====================================================
+         MODAL: DETALLES DE LA HISTORIA
+         ==================================================== -->
+    <div
+      v-if="historiaSeleccionada"
+      class="fondo-modal"
+      @click.self="cerrarDetalle"
+    >
+      <div
+        class="modal modal-detalles"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-detalles"
+      >
+        <!-- Encabezado -->
+        <div class="modal-encabezado">
+          <div class="icono-detalles">
+            <BookOpen :size="26" />
+          </div>
+
+          <div class="titulo-detalles">
+            <h3 id="titulo-detalles">Detalles de la historia de usuario</h3>
+            <p>Información general del requerimiento</p>
+          </div>
+
+          <button
+            type="button"
+            class="btn-cerrar-modal"
+            aria-label="Cerrar detalles"
+            @click="cerrarDetalle"
+          >
+            ×
+          </button>
+        </div>
+
+        <!-- Nombre e ID -->
+        <div class="resumen-sistema">
+          <div>
+            <span class="etiqueta-detalle">NOMBRE DEL REQUERIMIENTO</span>
+            <h4>{{ historiaSeleccionada.nombre }}</h4>
+          </div>
+
+          <span class="id-sistema">
+            ID: {{ historiaSeleccionada.id }}
+          </span>
+        </div>
+
+        <!-- Descripción -->
+        <div class="seccion-detalles">
+          <h5>Descripción</h5>
+          <p class="descripcion-detalle">
+            {{ historiaSeleccionada.descripcion }}
+          </p>
+        </div>
+
+        <!-- Persona que proporcionó la historia -->
+        <div class="seccion-detalles">
+          <h5>Persona que proporcionó el requerimiento</h5>
+
+          <div class="rejilla-detalles">
+            <div class="dato-detalle">
+              <span>Nombre completo</span>
+              <p>
+                {{
+                  personaDe(historiaSeleccionada)
+                    ? nombreCompleto(personaDe(historiaSeleccionada)!)
+                    : 'Sin asignar'
+                }}
+              </p>
+            </div>
+
+            <div class="dato-detalle">
+              <span>Correo electrónico</span>
+              <p>
+                {{ personaDe(historiaSeleccionada)?.correo ?? 'Sin asignar' }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prioridad y estatus -->
+        <div class="seccion-detalles">
+          <h5>Información del requerimiento</h5>
+
+          <div class="rejilla-detalles">
+            <div class="dato-detalle">
+              <span>Prioridad</span>
+              <p>{{ historiaSeleccionada.prioridad }}</p>
+            </div>
+
+            <div class="dato-detalle">
+              <span>Estatus</span>
+              <p>{{ historiaSeleccionada.estatus }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fechas -->
+        <div class="seccion-detalles">
+          <h5>Registro</h5>
+
+          <div class="rejilla-detalles">
+            <div class="dato-detalle">
+              <span>Fecha de captura</span>
+              <p>{{ historiaSeleccionada.fechaCaptura }}</p>
+            </div>
+
+            <div class="dato-detalle">
+              <span>Fecha de actualización</span>
+              <p>{{ historiaSeleccionada.fechaActualizacion }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Criterios de aceptación -->
+        <div class="seccion-detalles">
+          <h5>Criterios de aceptación</h5>
+
+          <div
+            v-if="historiaSeleccionada.criterios.length > 0"
+            class="lista-criterios"
+          >
+            <div
+              v-for="(criterio, indice) in historiaSeleccionada.criterios"
+              :key="criterio.id"
+              class="criterio-detalle"
+            >
+              <strong>{{ indice + 1 }}. {{ criterio.nombre }}</strong>
+              <span class="chip-estatus" :class="claseEstatus(criterio.estatus)">
+                {{ criterio.estatus }}
+              </span>
+              <p>{{ criterio.descripcion }}</p>
+            </div>
+          </div>
+
+          <p v-else class="descripcion-detalle">
+            Esta historia aún no tiene criterios de aceptación.
+          </p>
+        </div>
+
+        <!-- Estado -->
+        <div class="seccion-detalles">
+          <h5>Estado del registro</h5>
+          <span
+            class="estatus-detalle"
+            :class="historiaSeleccionada.activo ? 'estatus-finalizado' : 'chip-inactivo'"
+          >
+            {{ historiaSeleccionada.activo ? 'Activo' : 'Inactivo' }}
+          </span>
+        </div>
+
+        <!-- Pie del modal -->
+        <div class="pie-modal">
+          <button
+            type="button"
+            class="btn-guardar"
+            @click="cerrarDetalle"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ====================================================
@@ -811,6 +1180,23 @@ function guardarCriterio() {
             <small class="contador" :class="{ limite: formularioCriterio.descripcion.length >= MAX_AREA }">
               {{ formularioCriterio.descripcion.length }}/{{ MAX_AREA }}
             </small>
+          </div>
+
+          <!-- Estatus (por defecto: No iniciado) -->
+          <div class="campo">
+            <label for="estatusCriterio">Estatus</label>
+            <select
+              id="estatusCriterio"
+              v-model="formularioCriterio.estatus"
+            >
+              <option
+                v-for="opcion in ESTATUS_AVANCE"
+                :key="opcion"
+                :value="opcion"
+              >
+                {{ opcion }}
+              </option>
+            </select>
           </div>
 
           <p v-if="errorCriterio" class="error-campo">{{ errorCriterio }}</p>
@@ -1324,5 +1710,293 @@ h2 {
   .btn-guardar {
     width: 100%;
   }
+}
+
+/* MODAL DE DETALLES DE HISTORIAS */
+
+.modal-detalles {
+  max-width: 650px;
+  padding: 0;
+  border-radius: 16px;
+  overflow-x: hidden;
+}
+
+.modal-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.icono-detalles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #FCE8E8;
+  color: #B62A2D;
+}
+
+.titulo-detalles {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal .titulo-detalles h3 {
+  margin: 0 0 5px;
+  font-size: 20px;
+}
+
+.modal .titulo-detalles p {
+  margin: 0;
+  color: #777777;
+  font-size: 13px;
+}
+
+.btn-cerrar-modal {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: #F5F5F5;
+  color: #555555;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.btn-cerrar-modal:hover {
+  background: #EEEEEE;
+}
+
+.resumen-sistema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 22px 24px;
+  background: #FAFAFA;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.etiqueta-detalle {
+  color: #888888;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.resumen-sistema h4 {
+  margin: 7px 0 0;
+  color: #222223;
+  font-size: 19px;
+  overflow-wrap: anywhere;
+}
+
+.id-sistema {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #FCE8E8;
+  color: #B62A2D;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.seccion-detalles {
+  padding: 18px 24px;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.modal .seccion-detalles h5 {
+  margin: 0 0 14px;
+  color: #B62A2D;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.modal .descripcion-detalle {
+  margin: 0;
+  padding: 13px;
+  border-radius: 8px;
+  background: #F8F8F8;
+  color: #555555;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rejilla-detalles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dato-detalle {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #EEEEEE;
+  border-radius: 9px;
+  background: #FFFFFF;
+}
+
+.dato-detalle > span:first-child {
+  color: #888888;
+  font-size: 12px;
+}
+
+.modal .dato-detalle p {
+  margin: 7px 0 0;
+  color: #333333;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lista-criterios {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.criterio-detalle {
+  padding: 12px;
+  border: 1px solid #EEEEEE;
+  border-radius: 9px;
+  background: #FFFFFF;
+}
+
+.criterio-detalle strong {
+  color: #333333;
+  font-size: 13px;
+}
+
+.modal .criterio-detalle p {
+  margin: 7px 0 0;
+  color: #666666;
+  font-size: 13px;
+}
+
+.estatus-detalle {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.estatus-finalizado {
+  background: #E3F5E8;
+  color: #237442;
+}
+
+.pie-modal {
+  display: flex;
+  justify-content: flex-end;
+  padding: 18px 24px;
+  background: #FAFAFA;
+}
+
+.pie-modal .btn-guardar {
+  min-width: 100px;
+}
+
+@media (max-width: 520px) {
+  .modal-detalles {
+    max-height: 90vh;
+  }
+
+  .modal-encabezado {
+    padding: 18px;
+  }
+
+  .resumen-sistema,
+  .seccion-detalles {
+    padding: 16px 18px;
+  }
+
+  .resumen-sistema {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rejilla-detalles {
+    grid-template-columns: 1fr;
+  }
+
+  .pie-modal {
+    padding: 16px 18px;
+  }
+}
+
+/* ESTATUS DE HISTORIAS Y CRITERIOS */
+.mensaje.advertencia {
+  background: #FFF8E1;
+  color: #8A5A00;
+  border-color: #FFE0A3;
+}
+
+.select-estatus {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  background: #FFFFFF;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.select-estatus:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.select-estatus:focus-visible {
+  outline: 2px solid #B62A2D;
+  outline-offset: 3px;
+}
+
+.chip-estatus {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sel-no-iniciado {
+  background: #F2F2F2;
+  color: #555555;
+  border-color: #DDDDDD;
+}
+
+.sel-en-proceso {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border-color: #BFDBFE;
+}
+
+.sel-finalizado {
+  background: #E8F5E9;
+  color: #256B32;
+  border-color: #C8E6C9;
+}
+
+.ayuda-campo {
+  color: #777777;
+  font-size: 12px;
+}
+
+.criterio-detalle .chip-estatus {
+  margin: 4px 0;
 }
 </style>
