@@ -15,6 +15,16 @@ import { useRouter } from 'vue-router'
 
 // Instancia del enrutador.
 const router = useRouter()
+const correo = ref('')
+const password = ref('')
+
+const CInvalida = ref(false)
+const camposVacios = ref(false)
+const correoVacio = ref(false)
+const passwordVacio = ref(false)
+
+const correoInvalido = ref(false)
+const passwordInvalida = ref(false)
 
 
 // ======================================================
@@ -68,22 +78,16 @@ const passwordVacio = ref(false)
 */
 
 const usuarios = [
-
-  // ----------------------------------------------------
-  // ADMINISTRADOR
-  // ----------------------------------------------------
-  {
-    nombre: 'Paola Pech',
+   {
     correo: 'paola@gmail.com',
     password: '1234',
-    rol: 'Administrador',
-
-    // Tiene acceso completo al sistema.
-    permisos: {
-      sistemas: 3,
-      usuarios: 3,
-      roles: 3,
-      historias: 3
+    codigo: 'admin',
+    isAdmin: true,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 3,
+      Roles: 3,
+      Historias: 3,
     }
   },
 
@@ -94,14 +98,13 @@ const usuarios = [
     nombre: 'Ruby Sosa',
     correo: 'Rubyl@gmail.com',
     password: '5678',
-    rol: 'Invitado',
-
-    // Tiene permisos limitados.
-    permisos: {
-      sistemas: 2,
-      usuarios: 1,
-      roles: 1,
-      historias: 2
+    codigo: 'admin',
+    isAdmin: false,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 1,
+      Roles: 2,
+      Historias: 1,
     }
   },
 
@@ -109,568 +112,60 @@ const usuarios = [
   // EXTERNO - MONSERRATH
   // ----------------------------------------------------
   {
-    nombre: 'Monserrath Dzul',
-    correo: 'monserrath@gmail.com',
-    password: '5678',
-    rol: 'Externo',
-
-    permisos: {
-      sistemas: 2,
-      usuarios: 1,
-      roles: 1,
-      historias: 2
-    }
-  },
-
-  // ----------------------------------------------------
-  // EXTERNO - GABRIELA
-  // ----------------------------------------------------
-  {
-    nombre: 'Gabriela Cuellar',
-    correo: 'gabriela@gmail.com',
-    password: '9012',
-    rol: 'Externo',
-
-    permisos: {
-      sistemas: 1,
-      usuarios: 1,
-      roles: 1,
-      historias: 2
+    correo: 'Monsen@gmail.com',
+    password: 'admin123',
+    codigo: 'admin',
+    isAdmin: false,
+    Permisos: {
+      Sistemas: 3,
+      Usuarios: 1,
+      Roles: 1,
+      Historias: 2,
     }
   }
 
 ]
 
 
-// ======================================================
-// 5. MOSTRAR USUARIOS EXTERNOS
-// ======================================================
-
-// false: las opciones están ocultas.
-// true: muestra Monserrath y Gabriela.
-const mostrarExternos = ref(false)
-
-
-// ======================================================
-// 6. VARIABLES DEL CAPTCHA
-// ======================================================
-
-/*
-  El CAPTCHA genera un código de cinco caracteres.
-
-  Ejemplos:
-  KYvH6
-  M8pQ3
-  T7xB4
-
-  Distingue mayúsculas y minúsculas.
-*/
-
-// Guarda el código generado.
-const codigoCaptcha = ref('')
-
-// Guarda lo que escribe el usuario.
-const respuestaCaptcha = ref('')
-
-// Almacena los mensajes de error del CAPTCHA.
-const captchaError = ref('')
-
-// Referencia al canvas donde se dibujará el código.
-const canvasCaptcha = ref<HTMLCanvasElement | null>(null)
-
-
-// ======================================================
-// 7. GENERAR CÓDIGO CAPTCHA
-// ======================================================
-
-/**
- * generarCaptcha()
- *
- * Genera un código aleatorio de cinco caracteres.
- *
- * Utiliza letras mayúsculas, minúsculas y números.
- * Excluye caracteres que pueden confundirse.
- *
- * También limpia la respuesta y errores anteriores.
- */
-const generarCaptcha = (): void => {
-
-  // Caracteres que pueden aparecer.
-  const caracteres =
-    'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-
-  // Aquí se construirá el código.
-  let codigo = ''
-
-  // Obtiene números aleatorios del navegador.
-  // Se utiliza para seleccionar los caracteres.
-  const numeros = new Uint32Array(5)
-
-  crypto.getRandomValues(numeros)
-
-  // Recorre cinco posiciones.
-  for (let i = 0; i < 5; i++) {
-
-    // Selecciona una posición de la cadena.
-    const indice = numeros[i]! % caracteres.length
-
-    // Agrega el carácter seleccionado.
-    codigo += caracteres.charAt(indice)
-  }
-
-  // Guarda el nuevo código.
-  codigoCaptcha.value = codigo
-
-  // Limpia lo que escribió el usuario.
-  respuestaCaptcha.value = ''
-
-  // Elimina los mensajes de error anteriores.
-  captchaError.value = ''
-}
-
-
-// ======================================================
-// 8. DIBUJAR CAPTCHA
-// ======================================================
-
-/**
- * dibujarCaptcha()
- *
- * Dibuja el código dentro de un canvas HTML.
- *
- * Agrega:
- * - Fondo rosado.
- * - Líneas decorativas.
- * - Letras y números.
- * - Inclinación de caracteres.
- * - Diferentes posiciones.
- *
- * Esto hace que el CAPTCHA tenga una apariencia
- * similar a los códigos visuales tradicionales.
- */
-const dibujarCaptcha = (): void => {
-
-  // Obtiene el canvas del template.
-  const canvas = canvasCaptcha.value
-
-  // Si el canvas no existe, termina.
-  if (!canvas) return
-
-  // Obtiene las herramientas de dibujo.
-  const ctx = canvas.getContext('2d')
-
-  // Si no se puede dibujar, termina.
-  if (!ctx) return
-
-  // Limpia completamente el dibujo anterior.
-  ctx.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  )
-
-  // ----------------------------------------------------
-  // DIBUJAR FONDO
-  // ----------------------------------------------------
-
-  ctx.fillStyle = '#F8EEEE'
-
-  ctx.fillRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  )
-
-  // ----------------------------------------------------
-  // DIBUJAR LÍNEAS DECORATIVAS
-  // ----------------------------------------------------
-
-  // Genera seis líneas aleatorias.
-  for (let i = 0; i < 6; i++) {
-
-    ctx.beginPath()
-
-    // Punto inicial de la línea.
-    ctx.moveTo(
-      Math.random() * canvas.width,
-      Math.random() * canvas.height
-    )
-
-    // Punto final de la línea.
-    ctx.lineTo(
-      Math.random() * canvas.width,
-      Math.random() * canvas.height
-    )
-
-    // Color de las líneas.
-    ctx.strokeStyle = '#D6A4A4'
-
-    // Grosor de las líneas.
-    ctx.lineWidth = 1
-
-    // Dibuja la línea.
-    ctx.stroke()
-  }
-
-  // ----------------------------------------------------
-  // DIBUJAR CARACTERES
-  // ----------------------------------------------------
-
-  // Recorre cada letra o número del código.
-  for (let i = 0; i < codigoCaptcha.value.length; i++) {
-
-    // Guarda la configuración actual del dibujo.
-    ctx.save()
-
-    // Calcula la posición horizontal.
-    const x = 30 + i * 43
-
-    // Cambia ligeramente la altura del carácter.
-    const y = 45 + Math.random() * 12
-
-    // Mueve el punto de dibujo.
-    ctx.translate(x, y)
-
-    // Inclina el carácter aleatoriamente.
-    ctx.rotate(
-      (Math.random() - 0.5) * 0.4
-    )
-
-    // Configura la tipografía.
-    ctx.font = 'bold 35px Georgia'
-
-    // Alterna colores entre rojo y gris oscuro.
-    ctx.fillStyle = i % 2 === 0
-      ? '#9C252A'
-      : '#323238'
-
-    // Centra cada carácter.
-    ctx.textAlign = 'center'
-
-    // Dibuja la letra o número.
-    ctx.fillText(
-      codigoCaptcha.value[i]!,
-      0,
-      0
-    )
-
-    // Recupera la configuración original.
-    ctx.restore()
-  }
-
-}
-
-
-// ======================================================
-// 9. VALIDAR CAPTCHA
-// ======================================================
-
-/**
- * validarCaptcha()
- *
- * Comprueba si el usuario escribió correctamente
- * los cinco caracteres.
- *
- * Devuelve:
- * true: respuesta correcta.
- * false: respuesta incorrecta o vacía.
- */
-const validarCaptcha = (): boolean => {
-
-  // Elimina espacios al principio y al final.
-  const respuesta = respuestaCaptcha.value.trim()
-
-  // ----------------------------------------------------
-  // VERIFICAR CAMPO VACÍO
-  // ----------------------------------------------------
-
-  if (respuesta === '') {
-
-    captchaError.value =
-      'Por favor, completa el CAPTCHA.'
-
-    return false
-  }
-
-  // ----------------------------------------------------
-  // COMPARAR CÓDIGOS
-  // ----------------------------------------------------
-
-  // La comparación distingue mayúsculas y minúsculas.
-  if (respuesta !== codigoCaptcha.value) {
-
-    // Genera otro CAPTCHA.
-    generarCaptcha()
-
-    // Muestra el mensaje de error.
-    captchaError.value =
-      'Código incorrecto. Intenta con el nuevo CAPTCHA.'
-
-    return false
-  }
-
-  // ----------------------------------------------------
-  // CAPTCHA CORRECTO
-  // ----------------------------------------------------
-
-  captchaError.value = ''
-
-  return true
-}
-
-
-// ======================================================
-// 10. CICLO DE VIDA DEL CAPTCHA
-// ======================================================
-
-/**
- * onMounted()
- *
- * Se ejecuta cuando Vue termina de montar
- * el componente en la página.
- *
- * Genera el primer código CAPTCHA.
- */
-onMounted(() => {
-  generarCaptcha()
-})
-
-/**
- * watch()
- *
- * Observa los cambios del código CAPTCHA.
- *
- * Cuando se genera un nuevo código,
- * actualiza automáticamente el canvas.
- */
-watch(codigoCaptcha, () => {
-  dibujarCaptcha()
-})
-
-
-// ======================================================
-// 11. LIMPIAR ERRORES
-// ======================================================
-
-/**
- * limpiarErrores()
- *
- * Elimina los mensajes de error relacionados
- * con el correo y la contraseña.
- *
- * No borra el CAPTCHA.
- */
-const limpiarErrores = (): void => {
-
+  // Limpiar mensajes anteriores
   CInvalida.value = false
+  camposVacios.value = false
+  correoVacio.value = false
+  passwordVacio.value = false
+  correoInvalido.value = false
+  passwordInvalida.value = false
 
+  // Verificar qué campos están vacíos
+  correoVacio.value = correo.value === ''
+  passwordVacio.value = password.value === ''
+
+  // Si algún campo está vacío
+  if (correoVacio.value || passwordVacio.value) {
+    camposVacios.value = true
+    return
+  }
+
+  // Los campos ya están llenos
   camposVacios.value = false
 
-  correoVacio.value = false
-
-  passwordVacio.value = false
-}
-
-
-// ======================================================
-// 12. SELECCIONAR USUARIO ESPECÍFICO
-// ======================================================
-
-/**
- * seleccionarUsuario()
- *
- * Se utiliza para seleccionar usuarios externos
- * que comparten el mismo rol.
- *
- * Completa automáticamente el correo y contraseña.
- */
-const seleccionarUsuario = (
-  usuario: typeof usuarios[number]
-): void => {
-
-  // Coloca las credenciales.
-  correo.value = usuario.correo
-
-  password.value = usuario.password
-
-  // Limpia errores anteriores.
-  limpiarErrores()
-
-  // Oculta las opciones de usuarios externos.
-  mostrarExternos.value = false
-}
-
-
-// ======================================================
-// 13. RELLENAR CREDENCIALES SEGÚN ROL
-// ======================================================
-
-/**
- * llenarCredenciales()
- *
- * Busca un usuario por su rol.
- *
- * Se utiliza para:
- * - Administrador.
- * - Invitado.
- */
-const llenarCredenciales = (rol: string): void => {
-
-  // Busca el primer usuario con ese rol.
-  const usuario = usuarios.find(
-    usuario => usuario.rol === rol
-  )
-
-  // Si encuentra al usuario.
-  if (usuario) {
-
-    // Completa los campos.
-    correo.value = usuario.correo
-
-    password.value = usuario.password
-
-    // Limpia los errores.
-    limpiarErrores()
-
-    // Oculta las opciones externas.
-    mostrarExternos.value = false
-  }
-}
-
-
-// ======================================================
-// 14. MOSTRAR USUARIOS EXTERNOS
-// ======================================================
-
-/**
- * mostrarUsuariosExternos()
- *
- * Muestra u oculta los botones correspondientes
- * a Monserrath y Gabriela.
- */
-const mostrarUsuariosExternos = (): void => {
-
-  // Cambia el estado del menú.
-  mostrarExternos.value = !mostrarExternos.value
-
-  // Limpia errores anteriores.
-  limpiarErrores()
-}
-
-
-// ======================================================
-// 15. INICIAR SESIÓN
-// ======================================================
-
-/**
- * iniciarSesion()
- *
- * Es la función principal del formulario.
- *
- * Realiza los siguientes pasos:
- *
- * 1. Limpia errores anteriores.
- * 2. Verifica campos vacíos.
- * 3. Valida el CAPTCHA.
- * 4. Comprueba correo y contraseña.
- * 5. Guarda los datos del usuario.
- * 6. Redirige al panel.
- */
-const iniciarSesion = (): void => {
-
-  // ----------------------------------------------------
-  // PASO 1. LIMPIAR ERRORES
-  // ----------------------------------------------------
-
-  limpiarErrores()
-
-  // ----------------------------------------------------
-  // PASO 2. VALIDAR CAMPOS VACÍOS
-  // ----------------------------------------------------
-
-  correoVacio.value = correo.value.trim() === ''
-
-  passwordVacio.value = password.value.trim() === ''
-
-  // Si algún campo está vacío, detiene el proceso.
-  if (correoVacio.value || passwordVacio.value) {
-
-    camposVacios.value = true
-
-    return
-  }
-
-  // ----------------------------------------------------
-  // PASO 3. VALIDAR CAPTCHA
-  // ----------------------------------------------------
-
-  // Si la respuesta está vacía o es incorrecta,
-  // no permite continuar con el inicio de sesión.
-  if (!validarCaptcha()) {
-    return
-  }
-
-  // ----------------------------------------------------
-  // PASO 4. BUSCAR USUARIO
-  // ----------------------------------------------------
-
-  // Busca un usuario que tenga el correo y
-  // contraseña proporcionados.
+  // Buscar si existe el correo
   const usuarioEncontrado = usuarios.find(
-    usuario =>
-      usuario.correo === correo.value.trim() &&
-      usuario.password === password.value
+    usuario => usuario.correo === correo.value
   )
 
-  // ----------------------------------------------------
-  // PASO 5. VALIDAR CREDENCIALES
-  // ----------------------------------------------------
-
-  // Si el usuario no existe o los datos no coinciden.
+  // Si el correo no existe
   if (!usuarioEncontrado) {
-
-    CInvalida.value = true
-
-    // Genera otro CAPTCHA para el siguiente intento.
-    generarCaptcha()
-
+    correoInvalido.value = true
     return
   }
 
-  // ----------------------------------------------------
-  // PASO 6. PREPARAR DATOS DE SESIÓN
-  // ----------------------------------------------------
-
-  // Conserva los datos que utiliza el panel.
-  // No incluye la contraseña.
-  const usuarioSesion = {
-
-    nombre: usuarioEncontrado.nombre,
-
-    correo: usuarioEncontrado.correo,
-
-    rol: usuarioEncontrado.rol,
-
-    permisos: usuarioEncontrado.permisos
+  // Si el correo existe pero la contraseña es incorrecta
+  if (usuarioEncontrado.password !== password.value) {
+    passwordInvalida.value = true
+    return
   }
 
-  // ----------------------------------------------------
-  // PASO 7. GUARDAR DATOS
-  // ----------------------------------------------------
-
-  // Guarda la información para la demostración.
-  localStorage.setItem(
-    'user',
-    JSON.stringify(usuarioSesion)
-  )
-
-  // ----------------------------------------------------
-  // PASO 8. REDIRECCIÓN
-  // ----------------------------------------------------
-
-  // Navega al panel principal.
+  // Si todo está correcto
   router.push('/panel')
 }
 
@@ -685,8 +180,19 @@ const iniciarSesion = (): void => {
 
   <main class="login-page">
 
-    <!-- TARJETA DEL LOGIN -->
-    <section class="login-card">
+      <div class="campo">
+        <label>Correo o usuario</label>
+        <input
+          v-model="correo"
+          type="email"
+          placeholder="Correo electrónico"
+          :class="{ 'input-error': correoVacio || correoInvalido }"
+        />
+        <p v-if="correoInvalido" class="mensaje-error campo-error">
+        <span class="icono-error">!</span>
+        <span>Correo no existe o es inválido</span>
+      </p>
+      </div>
 
       <!-- ================================================
            2. ENCABEZADO
@@ -734,18 +240,29 @@ const iniciarSesion = (): void => {
           </label>
 
           <input
-            id="correo"
-            v-model="correo"
-            type="email"
-            placeholder="Ingresa tu correo"
-            autocomplete="username"
-            :class="{
-              'input-error': correoVacio || CInvalida
-            }"
+            v-model="password"
+            :type="mostrarPassword ? 'text' : 'password'"
+            placeholder="Contraseña"
+            :class="{ 'input-error': passwordVacio || passwordInvalida }"
           />
 
         </div>
+        <p v-if="passwordInvalida" class="mensaje-error campo-error">
+        <span class="icono-error">!</span>
+        <span>Contraseña incorrecta</span>
+      </p>
+      </div>
+      <!-- Mensaje cuando faltan campos -->
+      <p v-if="camposVacios" class="mensaje-error">
+        <span class="icono-error">!</span>
+        <span>Por favor completa todos los campos</span>
+      </p>
 
+      <!-- Mensaje cuando las credenciales son incorrectas -->
+      <p v-if="CInvalida" class="mensaje-error">
+        <span class="icono-error">!</span>
+        <span>Correo o contraseña incorrectos</span>
+      </p>
 
         <!-- ============================================
              CONTRASEÑA
@@ -977,19 +494,21 @@ const iniciarSesion = (): void => {
 
 
 <style scoped>
+.login-card {
+  width: 90%;
+  max-width: 400px;
+  margin: 30px auto;
+  padding: 30px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background-color: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
 
-/* ======================================================
-   1. PÁGINA GENERAL
-====================================================== */
-
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 30px 20px;
-  background: #f7f3f3;
-  box-sizing: border-box;
+input:focus {
+  outline: none;
+  border-color: #1877f2;
+  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.15);
 }
 
 
@@ -1199,11 +718,64 @@ input:focus {
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: 0.2s;
+  font-size: 16px;
+  background-color: #1877f2;
+  color: white;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
 }
 
-.btn-entrar:hover {
-  background: #D5575E;
+button:hover {
+  background-color: #166fe5;
+}
+
+.mensaje-error { 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 25px;
+  margin-bottom: 20px;
+  color: #d93025;
+  text-align: center;
+  font-size: 14px;
+}
+.campo-error {
+  justify-content: center;
+  margin-top: 5px;
+  margin-bottom: -15px;
+  text-align: center;
+}
+
+.icono-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #d93025;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.input-error {
+  border: 1px solid #d93025;
+}
+
+/* Adaptación para celular */
+/* RESPONSIVE: adapta el diseño del login para pantallas pequeñas como celulares */
+@media (max-width: 500px) {
+  .login-card {
+    width: min(90%, 400px);
+    box-sizing: border-box;
+  }
+
+  input,
+  button {
+    font-size: 14px;
+  }
 }
 
 

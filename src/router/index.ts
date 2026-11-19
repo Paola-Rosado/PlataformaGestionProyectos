@@ -15,41 +15,39 @@ import SystemsView from '../views/SystemsView.vue'
 import UsuariosView from '../views/UsersView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
 
-import { ref } from 'vue'
-import type { Sistema } from '../interfaces/Sistema'
+////PERMISOS//////
+export const NivelPermisos = {
+  Desactivado: 1,
+  Lectura: 2,
+  Escritura: 3,
+} as const; 
+export type NivelPermisosType = typeof NivelPermisos[keyof typeof NivelPermisos];
 
-// Al declarar estas variables fuera de la función, actúan como un estado global (compartido)
-const sistemaSeleccionadoGlobal = ref<Sistema | null>(null)
+export type NombreModulo = 'Sistemas' | 'Usuarios' | 'Roles' | 'Historias';
 
-export function SistemaActivo() {
-  function seleccionarSistema(sistema: Sistema | null) {
-    sistemaSeleccionadoGlobal.value = sistema
-  }
+export type PermisosUsuario = Record<NombreModulo, NivelPermisosType>;
 
-  return {
-    sistemaSeleccionadoGlobal,
-    seleccionarSistema
-  }
+export interface Usuario {
+  name: string;
+  isAdmin: boolean;
+  Permisos: PermisosUsuario;
 }
 
-/*
-  Nombre permitido para los módulos.
+///Funciones para validar acciones de lectura o escritura en las vistas////
+export function canRead(user: Usuario, module: NombreModulo): boolean {
+  if(user.isAdmin) return true;
+  const nivel = user.Permisos[module] ?? NivelPermisos.Desactivado;
+  return nivel >= NivelPermisos.Lectura;
+}
 
-  Esto ayuda a TypeScript a reconocer
-  correctamente los nombres utilizados.
-*/
-type NombreModulo =
-  | 'sistemas'
-  | 'usuarios'
-  | 'historias'
+export function canWrite(user: Usuario, module: NombreModulo): boolean {
+  if(user.isAdmin) return true;
+  const nivel = user.Permisos[module] ?? NivelPermisos.Desactivado;
+  return nivel === NivelPermisos.Escritura;
+}
 
-/*
-  Creación del Router.
-*/
 const router = createRouter({
-
-  // Utiliza URLs normales del navegador.
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
 
   routes: [
 
@@ -72,17 +70,9 @@ const router = createRouter({
     */
     {
       path: '/panel',
-      component: AdminPanel,
-      meta: {
-        requiresAuth: true
-      },
-
-      /*
-        Las vistas son hijas del Panel.
-
-        Esto permite conservar el menú lateral
-        mientras cambia solamente el contenido.
-      */
+      component: panel,
+      meta: { requiresAuth: true },
+      // Aquí estarán las páginas que se mostrarán dentro del panel
       children: [
 
         /*
@@ -99,35 +89,29 @@ const router = createRouter({
 
         {
           path: 'sistemas',
-          name: 'sistemas',
-          component: SystemsView,
-
-          meta: {
-            requiresAuth: true,
-            module: 'sistemas'
-          }
+          name: 'sistemas', // Añadido name para redirecciones seguras
+          component: SistemasView,
+          meta: { requiresAuth: true, module: 'Sistemas' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
         },
 
         {
           path: 'usuarios',
           name: 'usuarios',
           component: UsuariosView,
-
-          meta: {
-            requiresAuth: true,
-            module: 'usuarios'
-          }
+          meta: { requiresAuth: true, module: 'Usuarios' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
+        },
+        {
+          path: 'roles',
+          name: 'roles',
+          component: RolesView,
+          meta: { requiresAuth: true, module: 'Roles' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
         },
 
         {
           path: 'historias',
           name: 'historias',
           component: HistoriasView,
-
-          meta: {
-            requiresAuth: true,
-            module: 'historias'
-          }
+          meta: { requiresAuth: true, module: 'Historias' as NombreModulo, requiredLevel: NivelPermisos.Lectura }
         }
 
       ]
@@ -238,4 +222,39 @@ router.beforeEach((to) => {
   return true
 })
 
-export default router
+///Bloqueo de permisos////
+router.beforeEach((to, from, next)=> {
+  // Ignorar validaciones si va directo al login
+  if(to.path === '/'){
+    return next();
+  }
+
+  const currentUserString = localStorage.getItem('user');
+  const user = currentUserString ? JSON.parse(currentUserString) : null;
+
+  if (to.meta.requiresAuth){
+    if (!user){
+      return next({ name: 'login'});
+    }
+
+    // El administrador puede acceder a todos los modulos
+    if (user.isAdmin) {
+      return next();
+    }
+
+    const module = to.meta.module as NombreModulo;
+    const requiredLevel = (to.meta.requiredLevel as number) || 2;
+
+    if(module) {
+      const NivelUsuario = user.Permisos?.[module] ?? 1;
+
+      if(NivelUsuario < requiredLevel) {
+        alert("Acceso denegado: No tienes permisos para ingresar a este modulo.");
+        return next({ name: 'sistemas'});
+      }
+    }
+  }
+  next();
+})
+
+export default router;
