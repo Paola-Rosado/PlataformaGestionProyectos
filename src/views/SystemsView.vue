@@ -116,17 +116,7 @@ const sistemaSeleccionadoTabla = ref<Sistema | null>(null)
 // Guarda el ID del sistema actualmente seleccionado (solo uno a la vez)
 const idSistemaSeleccionado = ref<number | null>(null)
 // Función que se ejecuta al seleccionar un sistema
-function seleccionarUnicoSistema(sistema: Sistema) {
-  if (idSistemaSeleccionado.value === sistema.id) {
-    // Si ya estaba seleccionado y vuelve a hacer clic, se deselecciona
-    idSistemaSeleccionado.value = null
-    mensaje.value = ''
-  } else {
-    // Selecciona el nuevo sistema y muestra la notificación con su nombre
-    idSistemaSeleccionado.value = sistema.id
-    mostrarNotificacion(`Has seleccionado el sistema: ${sistema.nombre}`)
-  }
-}
+
 
 const { sistemaSeleccionadoGlobal, seleccionarSistema } = SistemaActivo()
 
@@ -141,7 +131,6 @@ function manejarSeleccion(sistema: Sistema) {
     mensaje.value = ''
   } else {
     seleccionarSistema(sistema) // Guarda el sistema globalmente
-    mostrarNotificacion(`Sistema seleccionado: ${sistema.nombre}`)
   }
 }
   
@@ -450,6 +439,13 @@ function guardarSistema() {
       <p>
         Administración y gestión de sistemas.
       </p>
+
+      <!-- Etiqueta verde de ancho total con títulos en negritas -->
+      <div v-if="sistemaSeleccionadoGlobal" style="margin-top: 8px;">
+        <span style="display: block; width: 100%; background-color: #FFCDD2; color: #000000; padding: 10px 14px; border-radius: 6px; font-size: 1.1rem; font-weight: normal; text-align: center; box-sizing: border-box;">
+          <strong>Sistema seleccionado:</strong> {{ sistemaSeleccionadoGlobal.nombre }} — <strong>Metodología:</strong> {{ sistemaSeleccionadoGlobal.metodologia }}
+        </span>
+      </div>
 
     </header>
 
