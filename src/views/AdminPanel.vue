@@ -10,6 +10,7 @@ import { computed } from 'vue'
 
 // Router se utiliza para cerrar sesión y cambiar de página.
 import { useRouter } from 'vue-router'
+import { Eye, Pencil } from 'lucide-vue-next'
 
 // Importamos los iconos que representarán cada módulo.
 import {
@@ -70,21 +71,12 @@ const puedeVer = (modulo: string): boolean => {
   return usuario.permisos?.[modulo] > 1
 }
 
+/*
+  Devuelve un texto entendible para el nivel
+  de permiso de cada módulo.
 
-// ======================================================
-// 4. MOSTRAR NOMBRE DEL PERMISO
-// ======================================================
 
-/**
- * nombrePermiso()
- *
- * Convierte el número del permiso en un texto.
- *
- * 3 = Escritura
- * 2 = Lectura
- * 1 = Desactivado
- */
-const nombrePermiso = (nivel: number): string => {
+const nombrePermiso = (nivel: number) => {
 
   if (nivel === 3) {
     return 'Escritura'
@@ -96,6 +88,7 @@ const nombrePermiso = (nivel: number): string => {
 
   return 'Desactivado'
 }
+  */
 
 
 // ======================================================
@@ -236,35 +229,20 @@ const cerrarSesion = (): void => {
 
       <nav class="menu">
 
-        <!-- ================================================
-             MÓDULO SISTEMAS
-        ================================================= -->
-
-        <RouterLink
+       <RouterLink
           v-if="puedeVer('sistemas')"
           to="/panel/sistemas"
         >
 
-          <!-- Icono y nombre -->
-          <div class="menu-opcion">
+          <Pencil
+            v-if="usuario.permisos.sistemas === 3"
+            :size="18"
+          />
 
-            <!-- Monitor con engranaje -->
-            <MonitorCog
-              class="menu-icono"
-              :size="21"
-              :stroke-width="1.8"
-              aria-hidden="true"
-            />
-
-            <span>
-              Sistemas
-            </span>
-
-          </div>
-
-          <!-- Nivel de permiso -->
-
-
+          <Eye
+            v-else-if="usuario.permisos.sistemas === 2"
+            :size="18"
+          />
         </RouterLink>
 
 
@@ -277,54 +255,43 @@ const cerrarSesion = (): void => {
           to="/panel/usuarios"
         >
 
-          <div class="menu-opcion">
+          <Pencil
+            v-if="usuario.permisos.usuarios === 3"
+            :size="18"
+          />
 
-            <!-- Grupo de personas -->
-            <UsersRound
-              class="menu-icono"
-              :size="21"
-              :stroke-width="1.8"
-              aria-hidden="true"
-            />
-
-            <span>
-              Usuarios
-            </span>
-
-          </div>
-
-
-
+          <Eye
+            v-else-if="usuario.permisos.usuarios === 2"
+            :size="18"
+          />
         </RouterLink>
 
 
-        <!-- ================================================
-             MÓDULO HISTORIAS DE USUARIO
-        ================================================= -->
+          <Pencil
+            v-if="usuario.permisos.roles === 3"
+            :size="18"
+          />
+
+          <Eye
+            v-else-if="usuario.permisos.roles === 2"
+            :size="18"
+          />
+        </RouterLink>
 
         <RouterLink
           v-if="puedeVer('historias')"
           to="/panel/historias"
         >
 
-          <div class="menu-opcion">
+          <Pencil
+            v-if="usuario.permisos.historias === 3"
+            :size="18"
+          />
 
-            <!-- Portapapeles con lista -->
-            <ClipboardList
-              class="menu-icono"
-              :size="21"
-              :stroke-width="1.8"
-              aria-hidden="true"
-            />
-
-            <span>
-              Historias de Usuario
-            </span>
-
-          </div>
-
-
-
+          <Eye
+            v-else-if="usuario.permisos.historias === 2"
+            :size="18"
+          />
         </RouterLink>
 
       </nav>
