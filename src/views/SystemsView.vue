@@ -22,10 +22,11 @@ import { ref, type Component } from 'vue'
 import type { Sistema } from '../interfaces/Sistema'
 import type { Metodologias } from '../interfaces/Metodologias'
 import {
-  MonitorCog, Eye, Pencil, Trash2,
+  MonitorCog, Eye, Pencil,
   CalendarDays, Code, FlaskConical, CircleCheck
 } from 'lucide-vue-next'
 import { SistemaActivo } from '../router/index'
+import { useSistemas } from '../composables/UseSistemas.ts'
 
 /*
 ==========================================================
@@ -59,46 +60,9 @@ Cuando no existen registros, la tabla mostrará:
 Por ahora, los registros se almacenan en memoria.
 */
 
-const sistemas = ref<Sistema[]>([
-// Guarda el mensaje que se mostrará en pantalla.
-
-  {
-    id: 1,
-    nombre: 'Sistema de Gestión Escolar',
-    descripcion: 'Plataforma para el control de calificaciones y asistencias de alumnos.',
-    correoResponsable: 'Rubyl@gmail.com',
-    nombreResponsable: 'Ruby Sosa',
-    fechaInicio: '2026-01-10',
-    fechaFinalizacion: '2026-10-30',
-    metodologia: 'Scrum',
-    estatus: 'En desarrollo',
-    fechaActualizacion: '10/01/2026 10:00'
-  },
-  {
-    id: 2,
-    nombre: 'Sistema de clinica dental',
-    descripcion: 'Control de clinica dental.',
-    correoResponsable: 'Paola@gmail.com',
-    nombreResponsable: 'Paola Pech',
-    fechaInicio: '2026-10-15',
-    fechaFinalizacion: '2026-10-30',
-    metodologia: 'Kanban',
-    estatus: 'Planeación',
-    fechaActualizacion: '01/02/2026 09:30'
-  },
-   {
-    id: 3,
-    nombre: 'Sistema de veterinaria',
-    descripcion: 'Sistema para clinica veterinaria.',
-    correoResponsable: 'gabriela@gmail.com',
-    nombreResponsable: 'Gabriela Cuellar',
-    fechaInicio: '2026-10-10',
-    fechaFinalizacion: '2026-10-30',
-    metodologia: 'Espiral',
-    estatus: 'En pruebas',
-    fechaActualizacion: '01/02/2026 09:30'
-  }
-])
+// El listado vive en un estado compartido (composables/useSistemas.ts)
+// para que Usuarios también pueda consultarlo.
+const { sistemas, aplicarSistemaPorDefecto } = useSistemas()
 
 const mensaje = ref('')
 
@@ -147,8 +111,6 @@ const mostrarFechaActualizacion = ref(false)
 const idEnEdicion = ref<number | null>(null)
 // Controla la ventana de detalles.
 const sistemaSeleccionado = ref<Sistema | null>(null)
-// Controla la confirmación para eliminar.
-const idPorEliminar = ref<number | null>(null)
 // Controla el sistema que el usuario ha seleccionado con el nuevo botón
 const sistemaSeleccionadoTabla = ref<Sistema | null>(null)
 // Guarda el ID del sistema actualmente seleccionado (solo uno a la vez)
@@ -167,6 +129,10 @@ function seleccionarUnicoSistema(sistema: Sistema) {
 }
 
 const { sistemaSeleccionadoGlobal, seleccionarSistema } = SistemaActivo()
+
+// Al entrar por primera vez se selecciona un sistema por defecto
+// (administrador: el más reciente; otros: el sistema donde participan).
+aplicarSistemaPorDefecto(sistemaSeleccionadoGlobal.value, seleccionarSistema)
 
 // Función que se ejecuta al marcar el checkbox en la tabla
 function manejarSeleccion(sistema: Sistema) {
@@ -282,26 +248,26 @@ function modificarSistema(sistema: Sistema) {
   mostrarFormulario.value = true
 }
 
-// Abrir la confirmación para eliminar.
-function confirmarEliminar(id: number) {
-  mensaje.value = ''
-  idPorEliminar.value = id
-}
+/*
+==========================================================
+ACTIVAR / DESACTIVAR
+==========================================================
+Los sistemas no se eliminan: solo se desactivan (interruptor ON/OFF).
+Un sistema desactivado no se puede seleccionar. Si estaba seleccionado,
+se limpia la selección.
+*/
+function cambiarEstadoSistema(sistema: Sistema) {
+  sistema.activo = !sistema.activo
 
-// Cancelar la eliminación.
-function cancelarEliminar() {
-  idPorEliminar.value = null
-}
+  if (!sistema.activo && sistemaSeleccionadoGlobal.value?.id === sistema.id) {
+    seleccionarSistema(null)
+  }
 
-function eliminarSistema() {
-  if (idPorEliminar.value === null) return
-
-  sistemas.value = sistemas.value.filter(
-    sistema => sistema.id !== idPorEliminar.value
+  mostrarNotificacion(
+    sistema.activo
+      ? `Sistema "${sistema.nombre}" activado.`
+      : `Sistema "${sistema.nombre}" desactivado.`
   )
-
-  idPorEliminar.value = null
-  mostrarNotificacion('Sistema eliminado correctamente.')
 }
 
 // Limpiar los campos del formulario.
@@ -421,7 +387,11 @@ function guardarSistema() {
     fechaFinalizacion: formulario.value.fechaFinalizacion,
     metodologia: formulario.value.metodologia,
     estatus: formulario.value.estatus,
-    fechaActualizacion: fechaActual
+    fechaActualizacion: fechaActual,
+    // Al editar se conserva el estado; un sistema nuevo nace activo.
+    activo: idEnEdicion.value !== null
+      ? (sistemas.value.find(s => s.id === idEnEdicion.value)?.activo ?? true)
+      : true
   }
 
 
@@ -432,6 +402,12 @@ function guardarSistema() {
 
     if (indice !== -1) {
       sistemas.value[indice] = datosSistema
+
+      // Mantiene actualizado el sistema seleccionado
+      // (por ejemplo, si cambió su metodología).
+      if (sistemaSeleccionadoGlobal.value?.id === datosSistema.id) {
+        seleccionarSistema(datosSistema)
+      }
     }
 
     mostrarNotificacion('Sistema modificado correctamente.')
@@ -608,6 +584,7 @@ function guardarSistema() {
               <tr
                 v-for="sistema in sistemas"
                 :key="sistema.id"
+                :class="{ 'fila-inactiva': !sistema.activo }"
               >
 
                 <td>
@@ -619,12 +596,14 @@ function guardarSistema() {
                     type="checkbox"
                     class="check-sistema"
                     :checked="sistemaSeleccionadoGlobal?.id === sistema.id"
+                    :disabled="!sistema.activo"
                     @change="manejarSeleccion(sistema)"
                     aria-label="Seleccionar sistema"
                   />
                 </td>
                 <td>
                   {{ sistema.nombre }}
+                  <span v-if="!sistema.activo" class="chip-inactivo">Inactivo</span>
                 </td>
 
                 <td>
@@ -688,16 +667,17 @@ function guardarSistema() {
                       <Pencil :size="18" />
                     </button>
 
-                    <!-- ELIMINAR -->
+                    <!-- ACTIVAR / DESACTIVAR (interruptor ON / OFF) -->
                     <button
                       type="button"
-                      class="btn-icono btn-eliminar"
-                      title="Eliminar"
-                      aria-label="Eliminar sistema"
-                      @click="confirmarEliminar(sistema.id)"
-                    >
-                      <Trash2 :size="18" />
-                    </button>
+                      class="switch"
+                      :class="{ activo: sistema.activo }"
+                      role="switch"
+                      :aria-checked="sistema.activo"
+                      :aria-label="sistema.activo ? 'Desactivar sistema' : 'Activar sistema'"
+                      :title="sistema.activo ? 'Desactivar sistema' : 'Activar sistema'"
+                      @click="cambiarEstadoSistema(sistema)"
+                    ></button>
 
                   </div>
                 </td>
@@ -1192,41 +1172,6 @@ function guardarSistema() {
             @click="cerrarDetalle"
           >
             Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Confirmación para eliminar -->
-    <div
-      v-if="idPorEliminar !== null"
-      class="fondo-modal"
-      @click.self="cancelarEliminar"
-    >
-      <div
-        class="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="titulo-eliminar"
-      >
-        <h3 id="titulo-eliminar">Eliminar sistema</h3>
-        <p>¿Estás segura de que deseas eliminar este sistema?</p>
-
-        <div class="acciones-formulario">
-          <button
-            type="button"
-            class="btn-cancelar"
-            @click="cancelarEliminar"
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="button"
-            class="btn-guardar btn-peligro"
-            @click="eliminarSistema"
-          >
-            Sí, eliminar
           </button>
         </div>
       </div>
@@ -1735,16 +1680,6 @@ Permite adaptar el contenido a pantallas pequeñas.
   border-color: #FDE68A;
 }
 
-/* Eliminar */
-.btn-eliminar {
-  color: #B62A2D;
-}
-
-.btn-eliminar:hover {
-  background: #FCE8E8;
-  border-color: #F2C6C6;
-}
-
 .check-sistema {
   width: 18px;
   height: 18px;
@@ -1805,14 +1740,6 @@ Permite adaptar el contenido a pantallas pequeñas.
   overflow-wrap: anywhere;
 }
 
-/* Botón de confirmar eliminación */
-.btn-peligro {
-  background: #C62828;
-}
-
-.btn-peligro:hover {
-  background: #A61F1F;
-}
 /* =========================================
    MODAL DE DETALLES DEL SISTEMA
    ========================================= */
@@ -2083,6 +2010,59 @@ Permite adaptar el contenido a pantallas pequeñas.
   .leyenda-estatus {
     justify-content: flex-start;
   }
+}
+
+/* =========================================
+   INTERRUPTOR ACTIVAR / DESACTIVAR (ON / OFF)
+   ========================================= */
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #CFCFCF;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.switch.activo {
+  background: #256B32;
+}
+
+.switch.activo::after {
+  transform: translateX(20px);
+}
+
+/* Registro desactivado */
+.fila-inactiva td:not(:last-child) {
+  color: #999999;
+}
+
+.chip-inactivo {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #F2F2F2;
+  color: #777777;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 </style>

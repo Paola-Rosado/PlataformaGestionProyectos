@@ -5,172 +5,70 @@
 MÓDULO DE USUARIOS
 ==========================================================
 
-Esta vista permite:
-1. Consultar los usuarios del sistema seleccionado.
-2. Registrar usuarios nuevos.
-3. Editar usuarios existentes.
-4. Activar o desactivar usuarios.
-5. Asignar roles según la metodología del sistema.
+Esta vista permite, para el SISTEMA SELECCIONADO:
 
-El correo electrónico es el nombre de usuario.
+1. Consultar sus usuarios.
+2. Registrar un usuario nuevo (formulario).
+3. Editar un usuario.
+4. Desactivar o activar un usuario.
+
+Reglas:
+- Si no hay un sistema seleccionado, no se muestran usuarios.
+- El rol se elige en un combo que se llena con los roles
+  de la metodología del sistema (Scrum, Kanban, etc.).
+- El usuario nuevo se registra como activo por defecto.
+- El nombre de usuario es el correo electrónico.
 */
 
-import { computed, ref, watch } from 'vue'
-import { Users, Pencil } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { UsersRound, Pencil } from 'lucide-vue-next'
 import { SistemaActivo } from '../router/index'
-import { useAccesos } from '../composables/UseAccesos.ts'
-import type { Usuario } from '../interfaces/Usuario.ts'
+import { useAccesos } from '../composables/UseAccesos'
+import { useSistemas } from '../composables/UseSistemas'
+import type { Usuario } from '../interfaces/Usuario'
 
-const { sistemaSeleccionadoGlobal } = SistemaActivo()
+const router = useRouter()
+
+const { sistemaSeleccionadoGlobal, seleccionarSistema } = SistemaActivo()
+const { aplicarSistemaPorDefecto } = useSistemas()
+
+// Si entran directo a Usuarios, también se aplica el sistema por defecto.
+aplicarSistemaPorDefecto(sistemaSeleccionadoGlobal.value, seleccionarSistema)
 
 const {
-  usuarios,
-  roles,
+  rolesDeMetodologia,
+  usuariosDeSistema,
   nombreCompleto,
-  nombreRol,
   correoExiste,
   agregarUsuario,
-  alternarActivo,
-  asignarRol
+  actualizarUsuario,
+  alternarActivo
 } = useAccesos()
 
 /*
 ==========================================================
-SISTEMA Y METODOLOGÍA SELECCIONADOS
+DATOS DEL SISTEMA SELECCIONADO
 ==========================================================
 */
 
-const metodologiaSeleccionada = computed(() => {
-  const sistema = sistemaSeleccionadoGlobal.value as
-    | (Record<string, unknown> & { nombre?: string })
-    | null
+// Usuarios del sistema seleccionado.
+const usuariosDelSistema = computed(() =>
+  sistemaSeleccionadoGlobal.value
+    ? usuariosDeSistema(sistemaSeleccionadoGlobal.value.id)
+    : []
+)
 
-  if (!sistema) return ''
+// Roles que dependen de la metodología del sistema.
+const rolesDisponibles = computed(() =>
+  sistemaSeleccionadoGlobal.value
+    ? rolesDeMetodologia(sistemaSeleccionadoGlobal.value.metodologia)
+    : []
+)
 
-  return String(
-    sistema.metodologia ??
-    sistema.nombreMetodologia ??
-    ''
-  ).trim()
-})
-
-/*
-==========================================================
-ROLES PREDEFINIDOS POR METODOLOGÍA
-==========================================================
-
-Los roles deben existir también en el catálogo de
-useAccesos.ts para poder guardar su rolId.
-
-No se inventan IDs aquí; se usan los del catálogo.
-*/
-
-const rolesPorMetodologia: Record<string, string[]> = {
-  scrum: [
-    'Scrum Master',
-    'Product Owner',
-    'Developer',
-    'Developers',
-    'Desarrollador',
-    'Equipo de desarrollo'
-  ],
-  xp: [
-    'Coach',
-    'Programador',
-    'Programmer',
-    'Cliente',
-    'Customer',
-    'Tester',
-    'Tracker',
-    'Manager',
-    'Consultor',
-    'Big Boss'
-  ],
-  crystal: [
-    'Patrocinador',
-    'Sponsor',
-    'Usuario experto',
-    'Expert User',
-    'Diseñador principal',
-    'Lead Designer',
-    'Diseñador programador',
-    'Designer Programmer',
-    'Coordinador',
-    'Tester'
-  ]
+function irASistemas() {
+  router.push('/panel/sistemas')
 }
-
-function normalizarTexto(texto: string) {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-}
-
-const rolesDisponibles = computed(() => {
-  const metodologia = normalizarTexto(
-    metodologiaSeleccionada.value
-  )
-
-  const clave = metodologia.startsWith('scrum')
-    ? 'scrum'
-    : metodologia === 'xp' ||
-        metodologia.includes('extreme programming')
-      ? 'xp'
-      : metodologia.startsWith('crystal')
-        ? 'crystal'
-        : ''
-
-  if (!clave) return []
-
-  const nombresPermitidos = rolesPorMetodologia[clave] ?? []
-
-  return roles.value.filter((rol) =>
-    nombresPermitidos.some(
-      (nombre) =>
-        normalizarTexto(nombre) ===
-        normalizarTexto(rol.nombre)
-    )
-  )
-})
-
-/*
-==========================================================
-USUARIOS DEL SISTEMA
-==========================================================
-
-Si los usuarios incluyen sistemaId, se filtran
-por el sistema seleccionado.
-
-Si el composable todavía no tiene esa propiedad,
-se muestran los usuarios existentes.
-*/
-
-const usuariosDelSistema = computed(() => {
-  if (!sistemaSeleccionadoGlobal.value) return []
-
-  const sistema = sistemaSeleccionadoGlobal.value as
-    Record<string, unknown>
-
-  const sistemaId = sistema.id
-
-  if (sistemaId === undefined || sistemaId === null) {
-    return usuarios.value
-  }
-
-  return usuarios.value.filter((usuario) => {
-    const registro = usuario as Usuario & {
-      sistemaId?: number | string
-    }
-
-    if (registro.sistemaId === undefined) {
-      return true
-    }
-
-    return String(registro.sistemaId) === String(sistemaId)
-  })
-})
 
 /*
 ==========================================================
@@ -191,7 +89,7 @@ function mostrarNotificacion(
 
 /*
 ==========================================================
-FORMULARIO DE REGISTRO Y EDICIÓN
+FORMULARIO (REGISTRAR / EDITAR)
 ==========================================================
 
 false = tabla de usuarios
@@ -204,13 +102,26 @@ Si es null, registra un usuario nuevo.
 const mostrarFormulario = ref(false)
 const usuarioEditando = ref<Usuario | null>(null)
 
+// null = registrando un usuario nuevo | número = editando ese usuario.
+const idEnEdicion = ref<number | null>(null)
+
 const formulario = ref({
   correo: '',
   nombre: '',
   apellidoPaterno: '',
   apellidoMaterno: '',
-  rolId: '' as number | '',
+  rol: '',
   activo: true
+})
+
+// Opciones del combo: los roles de la metodología. Si el usuario que se
+// edita tiene un rol que ya no pertenece a la metodología, se conserva
+// como opción para no perderlo sin querer.
+const opcionesRol = computed(() => {
+  const rol = formulario.value.rol
+  return rol && !rolesDisponibles.value.includes(rol)
+    ? [...rolesDisponibles.value, rol]
+    : rolesDisponibles.value
 })
 
 function limpiarFormulario() {
@@ -219,8 +130,8 @@ function limpiarFormulario() {
     nombre: '',
     apellidoPaterno: '',
     apellidoMaterno: '',
-    rolId: '',
-    activo: true
+    rol: '',
+    activo: true // Por defecto el usuario nuevo está activo.
   }
 
   usuarioEditando.value = null
@@ -236,66 +147,45 @@ function abrirFormulario() {
   }
 
   mensaje.value = ''
+  idEnEdicion.value = null
   limpiarFormulario()
   mostrarFormulario.value = true
 }
 
-/*
-==========================================================
-EDITAR USUARIO
-==========================================================
-*/
-
 function editarUsuario(usuario: Usuario) {
   mensaje.value = ''
-  usuarioEditando.value = usuario
-
+  idEnEdicion.value = usuario.id
   formulario.value = {
     correo: usuario.correo,
     nombre: usuario.nombre,
     apellidoPaterno: usuario.apellidoPaterno,
-    apellidoMaterno: usuario.apellidoMaterno ?? '',
-    rolId: usuario.rolId ?? '',
+    apellidoMaterno: usuario.apellidoMaterno,
+    rol: usuario.rol,
     activo: usuario.activo
   }
-
   mostrarFormulario.value = true
 }
 
-/*
-==========================================================
-CANCELAR
-==========================================================
-*/
-
-function cancelarRegistro() {
+function cancelarFormulario() {
   limpiarFormulario()
+  idEnEdicion.value = null
   mostrarFormulario.value = false
   mensaje.value = ''
 }
 
-/*
-==========================================================
-GUARDAR USUARIO
-==========================================================
-*/
-
 function guardarUsuario() {
-  const correo = formulario.value.correo.trim().toLowerCase()
+  const sistema = sistemaSeleccionadoGlobal.value
+  if (!sistema) return
+
+  const correo = formulario.value.correo.trim()
   const nombre = formulario.value.nombre.trim()
-  const apellidoPaterno =
-    formulario.value.apellidoPaterno.trim()
-  const apellidoMaterno =
-    formulario.value.apellidoMaterno.trim()
+  const apellidoPaterno = formulario.value.apellidoPaterno.trim()
+  const apellidoMaterno = formulario.value.apellidoMaterno.trim()
+  const rol = formulario.value.rol
 
-  const rolId = formulario.value.rolId
-  const activo = formulario.value.activo
-
-  if (!sistemaSeleccionadoGlobal.value) {
-    mostrarNotificacion(
-      'Selecciona un sistema antes de guardar.',
-      'error'
-    )
+  // El apellido materno es opcional.
+  if (!correo || !nombre || !apellidoPaterno || !rol) {
+    mostrarNotificacion('Por favor, completa todos los campos obligatorios.', 'error')
     return
   }
 
@@ -319,114 +209,32 @@ function guardarUsuario() {
     return
   }
 
-  if (rolId === '') {
-    mostrarNotificacion(
-      'Selecciona un rol para el usuario.',
-      'error'
-    )
+  // El correo es el nombre de usuario: no puede repetirse en el sistema.
+  if (correoExiste(sistema.id, correo, idEnEdicion.value ?? undefined)) {
+    mostrarNotificacion('Ya existe un usuario con ese correo en este sistema.', 'error')
     return
   }
 
-  const rolValido = rolesDisponibles.value.some(
-    (rol) => rol.id === rolId
-  )
-
-  if (!rolValido) {
-    mostrarNotificacion(
-      'El rol seleccionado no corresponde a la metodología del sistema.',
-      'error'
-    )
-    return
-  }
-
-  /*
-  ========================================================
-  MODO EDICIÓN
-  ========================================================
-  */
-
-  if (usuarioEditando.value) {
-    const usuario = usuarioEditando.value
-
-    const correoModificado =
-      normalizarTexto(usuario.correo) !==
-      normalizarTexto(correo)
-
-    if (correoModificado && correoExiste(correo)) {
-      mostrarNotificacion(
-        'Ya existe otro usuario con ese correo electrónico.',
-        'error'
-      )
-      return
-    }
-
-    // Actualizar datos existentes.
-    usuario.correo = correo
-    usuario.nombre = nombre
-    usuario.apellidoPaterno = apellidoPaterno
-    usuario.apellidoMaterno = apellidoMaterno
-
-    // Actualizar rol.
-    if (usuario.rolId !== rolId) {
-      asignarRol(usuario.id, rolId)
-    }
-
-    // Actualizar estado.
-    if (usuario.activo !== activo) {
-      alternarActivo(usuario.id)
-    }
-
-    limpiarFormulario()
-    mostrarFormulario.value = false
-
-    mostrarNotificacion(
-      'Usuario actualizado correctamente.'
-    )
-
-    return
-  }
-
-  /*
-  ========================================================
-  MODO REGISTRO
-  ========================================================
-  */
-
-  if (correoExiste(correo)) {
-    mostrarNotificacion(
-      'Ya existe un usuario con ese correo electrónico.',
-      'error'
-    )
-    return
-  }
-
-  agregarUsuario({
+  const datos = {
     correo,
     nombre,
     apellidoPaterno,
-    apellidoMaterno
-  })
+    apellidoMaterno,
+    rol,
+    activo: formulario.value.activo
+  }
 
-  // Buscar usuario recién agregado.
-  const nuevoUsuario = usuarios.value.find(
-    (usuario) =>
-      usuario.correo.trim().toLowerCase() === correo
-  )
-
-  if (nuevoUsuario) {
-    asignarRol(nuevoUsuario.id, rolId)
-
-    if (nuevoUsuario.activo !== activo) {
-      alternarActivo(nuevoUsuario.id)
-    }
+  if (idEnEdicion.value !== null) {
+    actualizarUsuario(idEnEdicion.value, datos)
+    mostrarNotificacion('Usuario modificado correctamente.')
+  } else {
+    agregarUsuario({ sistemaId: sistema.id, ...datos })
+    mostrarNotificacion('Usuario registrado correctamente.')
   }
 
   limpiarFormulario()
+  idEnEdicion.value = null
   mostrarFormulario.value = false
-
-  mostrarNotificacion(
-    'Usuario registrado correctamente.'
-  )
 }
 
 /*
@@ -447,18 +255,6 @@ function cambiarEstado(usuario: Usuario) {
       : `Usuario ${usuario.correo} desactivado.`
   )
 }
-
-/*
-==========================================================
-CAMBIO DE SISTEMA
-==========================================================
-*/
-
-watch(sistemaSeleccionadoGlobal, () => {
-  limpiarFormulario()
-  mostrarFormulario.value = false
-  mensaje.value = ''
-})
 </script>
 
 <template>
@@ -471,7 +267,7 @@ watch(sistemaSeleccionadoGlobal, () => {
           <p class="etiqueta">MÓDULO SELECCIONADO</p>
 
           <h2 class="titulo-modulo">
-            <Users :size="28" />
+            <UsersRound :size="28" />
             <span>Usuarios</span>
           </h2>
         </div>
@@ -495,23 +291,35 @@ watch(sistemaSeleccionadoGlobal, () => {
         </div>
       </div>
 
-      <p>Administración de los usuarios del sistema.</p>
+      <p>Administración de los usuarios del sistema seleccionado.</p>
     </header>
 
     <div class="tarjeta">
 
-      <!-- ============================================
-           VISTA 1: LISTADO DE USUARIOS
-           ============================================ -->
+      <!-- ==================================================
+           SIN SISTEMA SELECCIONADO
+           ================================================== -->
+      <div v-if="!sistemaSeleccionadoGlobal" class="estado-vacio sin-sistema">
+        <h4>Selecciona un sistema para ver sus usuarios</h4>
+        <p>
+          Los usuarios y sus roles dependen del sistema y de su metodología.
+        </p>
+        <button type="button" class="btn-agregar" @click="irASistemas">
+          Ir a Sistemas
+        </button>
+      </div>
 
-      <div v-if="!mostrarFormulario">
+      <!-- ==================================================
+           VISTA 1: LISTADO DE USUARIOS
+           ================================================== -->
+      <div v-else-if="!mostrarFormulario">
 
         <div class="encabezado-tabla">
           <div>
             <h3>Listado de usuarios</h3>
             <p>
-              Consulta y administra los usuarios
-              que se encuentran registrados.
+              Consulta y administra los usuarios del sistema
+              (metodología: {{ sistemaSeleccionadoGlobal.metodologia }}).
             </p>
           </div>
 
@@ -562,8 +370,9 @@ watch(sistemaSeleccionadoGlobal, () => {
 
             <thead>
               <tr>
-                <th>Nombre de usuario</th>
-                <th>Nombre completo</th>
+                <th>No.</th>
+                <th>Correo</th>
+                <th>Nombre</th>
                 <th>Rol</th>
                 <th>Acciones</th>
               </tr>
@@ -571,13 +380,12 @@ watch(sistemaSeleccionadoGlobal, () => {
 
             <tbody>
               <tr
-                v-for="usuario in usuariosDelSistema"
+                v-for="(usuario, indice) in usuariosDelSistema"
                 :key="usuario.id"
+                :class="{ 'fila-inactiva': !usuario.activo }"
               >
-                <!-- CORREO -->
-                <td>
-                  {{ usuario.correo }}
-                </td>
+                <!-- Número consecutivo dentro del sistema -->
+                <td>{{ indice + 1 }}</td>
 
                 <!-- NOMBRE COMPLETO -->
                 <td>
@@ -586,23 +394,18 @@ watch(sistemaSeleccionadoGlobal, () => {
 
                 <!-- ROL -->
                 <td>
-                  <span
-                    class="rol-etiqueta"
-                    :class="{
-                      'sin-rol': usuario.rolId === null
-                    }"
-                  >
-                    {{ nombreRol(usuario.rolId) }}
-                  </span>
+                  {{ usuario.correo }}
+                  <span v-if="!usuario.activo" class="chip-inactivo">Inactivo</span>
                 </td>
 
-                <!-- ==================================
-                     ACCIONES CORREGIDAS
-                     ================================== -->
+                <td>{{ nombreCompleto(usuario) }}</td>
+
+                <td>{{ usuario.rol }}</td>
+
                 <td>
                   <div class="acciones-tabla">
 
-                    <!-- BOTÓN EDITAR -->
+                    <!-- EDITAR -->
                     <button
                       type="button"
                       class="btn-icono btn-editar"
@@ -610,104 +413,49 @@ watch(sistemaSeleccionadoGlobal, () => {
                       aria-label="Editar usuario"
                       @click="editarUsuario(usuario)"
                     >
-                      <Pencil :size="17" />
-                      <span>Editar</span>
+                      <Pencil :size="18" />
                     </button>
 
-                    <!-- INTERRUPTOR ACTIVAR / DESACTIVAR -->
-                    <div class="control-estado">
-
-                      <button
-                        type="button"
-                        class="switch"
-                        :class="{ activo: usuario.activo }"
-                        role="switch"
-                        :aria-checked="usuario.activo"
-                        :aria-label="
-                          usuario.activo
-                            ? 'Desactivar usuario'
-                            : 'Activar usuario'
-                        "
-                        :title="
-                          usuario.activo
-                            ? 'Desactivar usuario'
-                            : 'Activar usuario'
-                        "
-                        @click="cambiarEstado(usuario)"
-                      >
-                        <span class="switch-circulo"></span>
-                      </button>
-
-                      <span
-                        :class="
-                          usuario.activo
-                            ? 'texto-activo'
-                            : 'texto-inactivo'
-                        "
-                      >
-                        {{
-                          usuario.activo
-                            ? 'Activo'
-                            : 'Inactivo'
-                        }}
-                      </span>
-
-                    </div>
-                    <!-- FIN DEL INTERRUPTOR -->
+                    <!-- ACTIVAR / DESACTIVAR (interruptor ON / OFF) -->
+                    <button
+                      type="button"
+                      class="switch"
+                      :class="{ activo: usuario.activo }"
+                      role="switch"
+                      :aria-checked="usuario.activo"
+                      :aria-label="usuario.activo ? 'Desactivar usuario' : 'Activar usuario'"
+                      :title="usuario.activo ? 'Desactivar usuario' : 'Activar usuario'"
+                      @click="cambiarEstado(usuario)"
+                    ></button>
 
                   </div>
-                  <!-- FIN DE ACCIONES -->
                 </td>
-
               </tr>
-              <!-- CIERRE CORRECTO DE LA FILA -->
 
-              <!-- SIN USUARIOS -->
+              <!-- MENSAJE CUANDO EL SISTEMA NO TIENE USUARIOS -->
               <tr v-if="usuariosDelSistema.length === 0">
-                <td colspan="4" class="mensaje-vacio">
+                <td colspan="5" class="mensaje-vacio">
                   <div class="estado-vacio">
-                    <h4>No existen usuarios registrados</h4>
-
-                    <p>
-                      Actualmente no hay usuarios dados de alta.
-                    </p>
-
-                    <p>
-                      Presiona "Agregar usuario" para registrar
-                      uno nuevo.
-                    </p>
+                    <h4>Este sistema aún no tiene usuarios</h4>
+                    <p>Presiona "Agregar usuario" para registrar el primero.</p>
                   </div>
                 </td>
               </tr>
-
             </tbody>
 
           </table>
         </div>
       </div>
 
-      <!-- ============================================
-           VISTA 2: AGREGAR / EDITAR USUARIO
-           ============================================ -->
-
+      <!-- ==================================================
+           VISTA 2: FORMULARIO (REGISTRAR / EDITAR)
+           ================================================== -->
       <div v-else>
 
         <div class="encabezado-formulario">
           <h3>
-            {{
-              usuarioEditando
-                ? 'Editar usuario'
-                : 'Registrar nuevo usuario'
-            }}
+            {{ idEnEdicion !== null ? 'Modificar usuario' : 'Registrar nuevo usuario' }}
           </h3>
-
-          <p>
-            {{
-              usuarioEditando
-                ? 'Modifica los datos del usuario seleccionado.'
-                : 'Completa los datos para registrar un usuario.'
-            }}
-          </p>
         </div>
 
         <!-- MENSAJES -->
@@ -800,97 +548,52 @@ watch(sistemaSeleccionadoGlobal, () => {
 
           </div>
 
-          <!-- ROL Y ESTADO -->
-          <h4 class="subtitulo-seccion">
-            ROL Y ESTADO
-          </h4>
-
+          <h4 class="subtitulo-seccion">ROL Y ESTADO</h4>
           <hr class="divisor-seccion" />
 
           <div class="fila-campos">
-
-            <!-- ROL -->
+            <!-- ROL (SEGÚN LA METODOLOGÍA DEL SISTEMA) -->
             <div class="campo">
               <label for="rol">
-                Rol
+                Rol ({{ sistemaSeleccionadoGlobal?.metodologia }})
               </label>
-
-              <select
-                id="rol"
-                v-model.number="formulario.rolId"
-                required
-              >
-                <option value="">
-                  Selecciona un rol
-                </option>
-
+              <select id="rol" v-model="formulario.rol" required>
+                <option value="">Selecciona un rol</option>
                 <option
-                  v-for="rol in rolesDisponibles"
-                  :key="rol.id"
-                  :value="rol.id"
+                  v-for="rol in opcionesRol"
+                  :key="rol"
+                  :value="rol"
                 >
-                  {{ rol.nombre }}
+                  {{ rol }}
                 </option>
               </select>
-
-              <p class="ayuda-campo">
-                Metodología del sistema:
-                <strong>
-                  {{ metodologiaSeleccionada || 'No definida' }}
-                </strong>
-              </p>
-
-              <p
-                v-if="rolesDisponibles.length === 0"
-                class="error-campo"
-              >
-                No hay roles configurados para esta
-                metodología en el catálogo de roles.
-              </p>
             </div>
 
-            <!-- ACTIVO -->
-            <div class="campo">
-              <label>Estado del usuario</label>
-
-              <label class="checkbox-activo">
+            <!-- ACTIVO (POR DEFECTO MARCADO) -->
+            <div class="campo campo-check">
+              <label class="check-activo" for="activo">
                 <input
+                  id="activo"
                   v-model="formulario.activo"
                   type="checkbox"
                 />
-
-                <span>Activo</span>
+                Usuario activo
               </label>
-
-              <p class="ayuda-campo">
-                Los usuarios nuevos se registran
-                activos por defecto.
-              </p>
             </div>
-
           </div>
 
-          <!-- BOTONES -->
           <div class="acciones-formulario">
 
             <button
               type="button"
               class="btn-cancelar"
-              @click="cancelarRegistro"
+              @click="cancelarFormulario"
             >
               Cancelar
             </button>
 
-            <button
-              type="submit"
-              class="btn-guardar"
-              :disabled="rolesDisponibles.length === 0"
-            >
-              {{
-                usuarioEditando
-                  ? 'Guardar cambios'
-                  : 'Guardar usuario'
-              }}
+            <button type="submit" class="btn-guardar">
+              {{ idEnEdicion !== null ? 'Guardar cambios' : 'Guardar usuario' }}
             </button>
 
           </div>
@@ -899,6 +602,7 @@ watch(sistemaSeleccionadoGlobal, () => {
       </div>
 
     </div>
+
   </section>
 </template>
 
@@ -1094,17 +798,7 @@ ENCABEZADO DE TABLA
   background: #922124;
 }
 
-.btn-agregar:disabled {
-  background: #CCCCCC;
-  cursor: not-allowed;
-}
-
-/*
-==========================================================
-TABLA
-==========================================================
-*/
-
+/* TABLA (mismo estilo que la de Sistemas) */
 .contenedor-tabla {
   width: 100%;
   overflow-x: auto;
@@ -1130,7 +824,7 @@ TABLA
 }
 
 .tabla-usuarios td {
-  padding: 12px 15px;
+  padding: 5px 15px;
   color: #555555;
   border-bottom: 1px solid #eeeeee;
   vertical-align: middle;
@@ -1140,12 +834,23 @@ TABLA
   background: #FAFAFA;
 }
 
-/*
-==========================================================
-ESTADO VACÍO
-==========================================================
-*/
+/* Usuario desactivado */
+.fila-inactiva td:not(:last-child) {
+  color: #999999;
+}
 
+.chip-inactivo {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #F2F2F2;
+  color: #777777;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ESTADO VACÍO */
 .mensaje-vacio {
   text-align: center;
 }
@@ -1167,39 +872,20 @@ ESTADO VACÍO
   font-size: 13px;
 }
 
-/*
-==========================================================
-ETIQUETA DE ROL
-==========================================================
-*/
-
-.rol-etiqueta {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 20px;
-  background: #FCE8E8;
-  color: #B62A2D;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
+.estado-vacio.sin-sistema {
+  text-align: center;
 }
 
-.rol-etiqueta.sin-rol {
-  background: #F2F2F2;
-  color: #888888;
-  font-weight: 500;
+.estado-vacio.sin-sistema .btn-agregar {
+  margin-top: 15px;
 }
 
-/*
-==========================================================
-ACCIONES DE TABLA
-==========================================================
-*/
-
+/* ACCIONES DE LA TABLA */
 .acciones-tabla {
   display: flex;
   align-items: center;
-  gap: 15px;
+  justify-content: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
@@ -1229,13 +915,49 @@ ACCIONES DE TABLA
   transform: scale(0.96);
 }
 
+/* Editar */
 .btn-editar {
-  color: #2563EB;
+  color: #B7791F;
 }
 
 .btn-editar:hover {
-  background: #EFF6FF;
-  border-color: #BFDBFE;
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+
+/* Interruptor activar / desactivar (ON / OFF) */
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #CFCFCF;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.switch.activo {
+  background: #256B32;
+}
+
+.switch.activo::after {
+  transform: translateX(20px);
 }
 
 .acciones-tabla button:focus-visible {
@@ -1317,7 +1039,7 @@ FORMULARIO
 }
 
 .subtitulo-seccion {
-  margin: 25px 0 8px;
+  margin: 10px 0 8px;
   color: #B62A2D;
   font-size: 12px;
   font-weight: 700;
@@ -1344,7 +1066,8 @@ FORMULARIO
   font-weight: 600;
 }
 
-.campo input:not([type="checkbox"]),
+.campo input[type="text"],
+.campo input[type="email"],
 .campo select {
   width: 100%;
   padding: 12px 14px;
@@ -1362,6 +1085,26 @@ FORMULARIO
 .campo input:focus,
 .campo select:focus {
   border-color: #B62A2D;
+}
+
+/* Check "Usuario activo", alineado con el combo de rol */
+.campo-check {
+  justify-content: flex-end;
+}
+
+.check-activo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  cursor: pointer;
+}
+
+.check-activo input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #B62A2D;
 }
 
 .fila-campos {
@@ -1453,17 +1196,7 @@ BOTONES DEL FORMULARIO
   background: #922124;
 }
 
-.btn-guardar:disabled {
-  background: #CCCCCC;
-  cursor: not-allowed;
-}
-
-/*
-==========================================================
-RESPONSIVO
-==========================================================
-*/
-
+/* RESPONSIVO */
 @media (max-width: 768px) {
   .tarjeta {
     padding: 20px;

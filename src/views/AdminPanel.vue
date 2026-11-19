@@ -15,7 +15,6 @@ import { useRouter } from 'vue-router'
 import {
   MonitorCog,     // Sistemas
   UsersRound,     // Usuarios
-  ShieldCheck,    // Roles
   ClipboardList   // Historias de Usuario
 } from 'lucide-vue-next'
 
@@ -300,36 +299,6 @@ const cerrarSesion = (): void => {
 
 
         <!-- ================================================
-             MÓDULO ROLES
-        ================================================= -->
-
-        <RouterLink
-          v-if="puedeVer('roles')"
-          to="/panel/roles"
-        >
-
-          <div class="menu-opcion">
-
-            <!-- Escudo de seguridad -->
-            <ShieldCheck
-              class="menu-icono"
-              :size="21"
-              :stroke-width="1.8"
-              aria-hidden="true"
-            />
-
-            <span>
-              Roles
-            </span>
-
-          </div>
-
-
-
-        </RouterLink>
-
-
-        <!-- ================================================
              MÓDULO HISTORIAS DE USUARIO
         ================================================= -->
 
@@ -433,7 +402,6 @@ const cerrarSesion = (): void => {
 
         /panel/sistemas  -> SistemasView
         /panel/usuarios  -> UsuariosView
-        /panel/roles     -> RolesView
         /panel/historias -> HistoriasView
       -->
 
