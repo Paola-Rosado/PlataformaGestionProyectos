@@ -13,6 +13,8 @@ import { ref, onMounted, watch } from 'vue'
 // Permite navegar entre páginas.
 import { useRouter } from 'vue-router'
 
+import { useAccesos } from '../composables/UseAccesos'
+
 // Instancia del enrutador.
 const router = useRouter()
 const correo = ref('')
@@ -26,6 +28,8 @@ const passwordVacio = ref(false)
 const correoInvalido = ref(false)
 const passwordInvalida = ref(false)
 
+// Obtiene la misma lista de usuarios que utiliza UsersView.
+const { usuarios: usuariosRegistrados } = useAccesos()
 
 // ======================================================
 // 2. CAMPOS DEL FORMULARIO
@@ -52,7 +56,8 @@ const camposVacios = ref(false)
 const correoVacio = ref(false)
 const passwordVacio = ref(false)
 
-
+// Indica si la cuenta está desactivada o no está registrada.
+const cuentaNoDisponible = ref(false)
 // ======================================================
 // 4. USUARIOS DEL SISTEMA
 // ======================================================
@@ -134,7 +139,7 @@ const usuarios = [
     rol: 'Externo',
 
     permisos: {
-      sistemas: 1,
+      sistemas: 2,
       usuarios: 1,
       historias: 2
     }
@@ -167,6 +172,8 @@ const usuarios = [
   correoVacio.value = false
 
   passwordVacio.value = false
+
+  cuentaNoDisponible.value = false
 }
 
 
@@ -324,10 +331,43 @@ const iniciarSesion = (): void => {
     return
   }
 
-  // Si el correo existe pero la contraseña es incorrecta
-  if (usuarioEncontrado.password !== password.value) {
-    passwordInvalida.value = true
-    return
+  // ----------------------------------------------------
+// PASO 5.1. VERIFICAR SI LA CUENTA ESTÁ ACTIVA
+// ----------------------------------------------------
+
+// Busca el usuario en la lista compartida con UsersView.
+const usuarioRegistrado = usuariosRegistrados.value.find(
+  usuario =>
+    usuario.correo.trim().toLowerCase() ===
+    usuarioEncontrado.correo.trim().toLowerCase()
+)
+
+// Si no está registrado o se encuentra desactivado,
+// no permite iniciar sesión.
+if (!usuarioRegistrado || !usuarioRegistrado.activo) {
+
+  cuentaNoDisponible.value = true
+
+  generarCaptcha()
+
+  return
+}
+
+  // ----------------------------------------------------
+  // PASO 6. PREPARAR DATOS DE SESIÓN
+  // ----------------------------------------------------
+
+  // Conserva los datos que utiliza el panel.
+  // No incluye la contraseña.
+  const usuarioSesion = {
+
+    nombre: usuarioEncontrado.nombre,
+
+    correo: usuarioEncontrado.correo,
+
+    rol: usuarioEncontrado.rol,
+
+    permisos: usuarioEncontrado.permisos
   }
 
   // Si todo está correcto
@@ -365,9 +405,9 @@ const iniciarSesion = (): void => {
 
       <header class="login-header">
 
-        <p class="etiqueta">
+        <!--<p class="etiqueta">
           PLATAFORMA
-        </p>
+        </p>-->
 
         <h1>
           Plataforma de Gestión de Proyectos
@@ -548,7 +588,16 @@ const iniciarSesion = (): void => {
           Credenciales inválidas.
         </div>
 
-
+        <!-- Cuenta desactivada o no registrada -->
+        <div
+          v-if="cuentaNoDisponible"
+          class="mensaje-error"
+          role="alert"
+        >
+          Tu cuenta se encuentra desactivada o no está registrada.
+          Comunícate con el administrador.
+        </div>
+        
         <!-- ============================================
              6. BOTÓN ENTRAR
         ============================================= -->
@@ -670,10 +719,18 @@ const iniciarSesion = (): void => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
-input:focus {
-  outline: none;
-  border-color: #1877f2;
-  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.15);
+/* ======================================================
+   1. PÁGINA GENERAL
+====================================================== */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 20px;
+  background: #f7f3f3;
+  box-sizing: border-box;
 }
 
 
@@ -684,7 +741,7 @@ input:focus {
 .login-card {
   width: 100%;
   max-width: 430px;
-  padding: 35px;
+  padding: 22px 30px;
   background: #FEFEFE;
   border: 1px solid #eadada;
   border-radius: 16px;
@@ -699,7 +756,7 @@ input:focus {
 
 .login-header {
   text-align: center;
-  margin-bottom: 25px;
+  margin-bottom: 18px;
 }
 
 .etiqueta {
@@ -713,21 +770,21 @@ input:focus {
 .login-header h1 {
   margin: 0;
   color: #222223;
-  font-size: 27px;
+  font-size: 24px;
   line-height: 1.2;
 }
 
 .descripcion {
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   color: #707070;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 h2 {
-  margin-bottom: 25px;
+  margin: 0 0 12px;
   color: #222223;
   text-align: center;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 
@@ -738,25 +795,25 @@ h2 {
 .campo {
   display: flex;
   flex-direction: column;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 label {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 5px;
   color: #222223;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 input {
   width: 100%;
-  padding: 12px 14px;
+  padding: 10px 13px;
   border: 1px solid #cccccc;
   border-radius: 8px;
   color: #222223;
   background: #FEFEFE;
-  font-size: 15px;
+  font-size: 14px;
   box-sizing: border-box;
   transition: 0.2s;
 }
@@ -778,8 +835,8 @@ input:focus {
 
 /* Contenedor general del CAPTCHA */
 .captcha-contenedor {
-  margin-bottom: 22px;
-  padding: 17px;
+  margin-bottom: 12px;
+  padding: 10px;
   background: #fdf8f8;
   border: 1px solid #eadada;
   border-radius: 10px;
@@ -787,7 +844,7 @@ input:focus {
 
 /* Título de verificación */
 .captcha-titulo {
-  margin: 0;
+  margin: 0 0 6px;
   color: #222223;
   font-size: 14px;
   font-weight: 700;
@@ -806,14 +863,14 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 8px;
 }
 
 /* Área donde se dibuja el CAPTCHA */
 .captcha-canvas {
   display: block;
-  width: 100%;
-  min-width: 0;
+  width: 230px;
+  max-width: calc(100% - 45px);
   height: auto;
   background: #F8EEEE;
   border: 1px solid #E6A8A8;
