@@ -46,6 +46,9 @@ export function canWrite(user: Usuario, module: NombreModulo): boolean {
   return nivel === NivelPermisos.Escritura;
 }
 
+/*
+  Creación del Router.
+*/
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
 
