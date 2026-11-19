@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 
 // ======================================================
@@ -10,7 +9,15 @@ import { computed } from 'vue'
 
 // Router se utiliza para cerrar sesión y cambiar de página.
 import { useRouter } from 'vue-router'
-import { Eye, Pencil } from 'lucide-vue-next'
+
+// CAMBIO AÑADIDO: Manejo de cookies.
+import Cookies from 'js-cookie'
+import CookieConsent from '../components/CookieConsent.vue'
+// FIN DEL CAMBIO AÑADIDO.
+
+// CAMBIO AÑADIDO: Control de tiempo de inactividad.
+import { useInactividad } from '../composables/UseInactividad'
+// FIN DEL CAMBIO AÑADIDO.
 
 // Importamos los iconos que representarán cada módulo.
 import {
@@ -64,6 +71,7 @@ const puedeVer = (modulo: string): boolean => {
 
   // Si no existe un usuario, no permite mostrar módulos.
   if (!usuario) {
+
     return false
   }
 
@@ -71,24 +79,34 @@ const puedeVer = (modulo: string): boolean => {
   return usuario.permisos?.[modulo] > 1
 }
 
-/*
-  Devuelve un texto entendible para el nivel
-  de permiso de cada módulo.
 
+// ======================================================
+// 4. MOSTRAR NOMBRE DEL PERMISO
+// ======================================================
 
-const nombrePermiso = (nivel: number) => {
+/**
+ * nombrePermiso()
+ *
+ * Convierte el número del permiso en un texto.
+ *
+ * 3 = Escritura
+ * 2 = Lectura
+ * 1 = Desactivado
+ */
+const nombrePermiso = (nivel: number): string => {
 
   if (nivel === 3) {
+
     return 'Escritura'
   }
 
   if (nivel === 2) {
+
     return 'Lectura'
   }
 
   return 'Desactivado'
 }
-  */
 
 
 // ======================================================
@@ -108,6 +126,7 @@ const cantidadModulos = computed(() => {
 
   // Si no existe un usuario, devuelve cero.
   if (!usuario) {
+
     return 0
   }
 
@@ -142,9 +161,55 @@ const cerrarSesion = (): void => {
   // Elimina el rol almacenado, si existe.
   localStorage.removeItem('rolUsuario')
 
+  // ======================================================
+  // CAMBIO AÑADIDO: COOKIES
+  //
+  // Elimina la cookie "sesion" que se creó al iniciar
+  // sesión desde LoginComponent.vue.
+  //
+  // Esto impide que el usuario siga accediendo a las
+  // rutas protegidas después de cerrar sesión.
+  //
+  // Se utiliza path: '/' porque es la misma ruta
+  // que se estableció al crear la cookie.
+  // ======================================================
+
+  Cookies.remove('sesion', { path: '/' })
+
+  // FIN DEL CAMBIO AÑADIDO: COOKIES.
+
   // Redirige al inicio de sesión.
   router.push('/')
 }
+
+
+// ======================================================
+// 7. TIEMPO DE INACTIVIDAD
+// ======================================================
+
+// CAMBIO AÑADIDO:
+//
+// Inicia el monitoreo de la actividad del usuario.
+//
+// Si transcurren 5 minutos sin movimientos del mouse,
+// clics, uso del teclado o desplazamientos, se ejecuta
+// automáticamente la función cerrarSesion().
+//
+// Al cerrar sesión se eliminan los datos del usuario,
+// la cookie de sesión y se regresa al Login.
+//
+// El contador se reinicia cada vez que el usuario
+// interactúa con la plataforma.
+
+// CAMBIO AÑADIDO: Cierre de sesión por inactividad.
+// PRUEBA TEMPORAL: Cerrar sesión después de 10 segundos.
+
+useInactividad(cerrarSesion, 5)
+
+// Cuando termine la prueba, utilizar:
+// useInactividad(cerrarSesion, 5)
+
+// FIN DEL CAMBIO AÑADIDO.
 
 </script>
 
@@ -185,6 +250,7 @@ const cerrarSesion = (): void => {
         Solo se muestra cuando existe un usuario
         con sesión iniciada.
       -->
+
       <section
         v-if="usuario"
         class="usuario"
@@ -229,20 +295,35 @@ const cerrarSesion = (): void => {
 
       <nav class="menu">
 
-       <RouterLink
+        <!-- ================================================
+             MÓDULO SISTEMAS
+        ================================================= -->
+
+        <RouterLink
           v-if="puedeVer('sistemas')"
           to="/panel/sistemas"
         >
 
-          <Pencil
-            v-if="usuario.permisos.sistemas === 3"
-            :size="18"
-          />
+          <!-- Icono y nombre -->
+          <div class="menu-opcion">
 
-          <Eye
-            v-else-if="usuario.permisos.sistemas === 2"
-            :size="18"
-          />
+            <!-- Monitor con engranaje -->
+            <MonitorCog
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Sistemas
+            </span>
+
+          </div>
+
+          <!-- Nivel de permiso -->
+
+
         </RouterLink>
 
 
@@ -255,43 +336,52 @@ const cerrarSesion = (): void => {
           to="/panel/usuarios"
         >
 
-          <Pencil
-            v-if="usuario.permisos.usuarios === 3"
-            :size="18"
-          />
+          <div class="menu-opcion">
 
-          <Eye
-            v-else-if="usuario.permisos.usuarios === 2"
-            :size="18"
-          />
+            <!-- Grupo de personas -->
+            <UsersRound
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Usuarios
+            </span>
+
+          </div>
+
+
         </RouterLink>
 
 
-          <Pencil
-            v-if="usuario.permisos.roles === 3"
-            :size="18"
-          />
-
-          <Eye
-            v-else-if="usuario.permisos.roles === 2"
-            :size="18"
-          />
-        </RouterLink>
+        <!-- ================================================
+             MÓDULO HISTORIAS DE USUARIO
+        ================================================= -->
 
         <RouterLink
           v-if="puedeVer('historias')"
           to="/panel/historias"
         >
 
-          <Pencil
-            v-if="usuario.permisos.historias === 3"
-            :size="18"
-          />
+          <div class="menu-opcion">
 
-          <Eye
-            v-else-if="usuario.permisos.historias === 2"
-            :size="18"
-          />
+            <!-- Portapapeles con lista -->
+            <ClipboardList
+              class="menu-icono"
+              :size="21"
+              :stroke-width="1.8"
+              aria-hidden="true"
+            />
+
+            <span>
+              Historias de Usuario
+            </span>
+
+          </div>
+
+
         </RouterLink>
 
       </nav>
@@ -305,6 +395,7 @@ const cerrarSesion = (): void => {
         Se encuentra en la parte inferior
         del menú lateral.
       -->
+
       <div class="sidebar-footer">
 
         <button
@@ -379,6 +470,19 @@ const cerrarSesion = (): void => {
       </section>
 
     </main>
+
+
+    <!-- ==================================================
+         CAMBIO AÑADIDO: AVISO DE COOKIES
+
+         Muestra el aviso únicamente dentro del panel
+         principal cuando existe una sesión iniciada.
+    ================================================== -->
+
+    <CookieConsent v-if="usuario" />
+
+    <!-- FIN DEL CAMBIO AÑADIDO -->
+
 
   </div>
 

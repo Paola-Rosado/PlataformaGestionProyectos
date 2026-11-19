@@ -10,4 +10,8 @@ export interface Usuario {
   // Rol dentro del sistema (depende de su metodología).
   rol: string
   activo: boolean
+
+  // Contraseña asignada al registrar un nuevo usuario.
+  // Es opcional para conservar los registros anteriores.
+  password?: string
 }

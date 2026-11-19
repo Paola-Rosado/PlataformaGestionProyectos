@@ -17,6 +17,13 @@
 import { refPersistente } from './UseAlmacenamiento'
 import type { Usuario } from '../interfaces/Usuario'
 
+// ======================================================
+// CAMBIO AÑADIDO:
+// Contraseña predeterminada para los nuevos usuarios.
+// ======================================================
+const PASSWORD_DEFAULT = '123456'
+// FIN DEL CAMBIO AÑADIDO.
+
 // Las llaves deben coincidir con el nombre de la metodología del sistema.
 const rolesPorMetodologia: Record<string, string[]> = {
   'Scrum': ['Product Owner', 'Scrum Master', 'Equipo de desarrollo'],
@@ -45,6 +52,29 @@ const usuarios = refPersistente<Usuario>('usuarios', [
   { id: 3, sistemaId: 2, correo: 'paola@gmail.com', nombre: 'Paola', apellidoPaterno: 'Pech', apellidoMaterno: '', rol: 'Gestor de entrega de servicio', activo: true },
   { id: 4, sistemaId: 3, correo: 'gabriela@gmail.com', nombre: 'Gabriela', apellidoPaterno: 'Cuellar', apellidoMaterno: '', rol: 'Gerente de proyecto', activo: true }
 ])
+
+// ======================================================
+// CAMBIO AÑADIDO:
+// Conserva las contraseñas originales de los usuarios
+// de prueba para que puedan seguir ingresando normalmente.
+// ======================================================
+const passwordsOriginales: Record<string, string> = {
+  'paola@gmail.com': '1234',
+  'rubyl@gmail.com': '5678',
+  'monserrath@gmail.com': '5678',
+  'gabriela@gmail.com': '9012'
+}
+
+// Asigna una contraseña a los usuarios registrados
+// anteriormente que todavía no cuentan con una.
+usuarios.value.forEach(usuario => {
+  if (!usuario.password) {
+    usuario.password =
+      passwordsOriginales[usuario.correo.trim().toLowerCase()]
+      ?? PASSWORD_DEFAULT
+  }
+})
+// FIN DEL CAMBIO AÑADIDO.
 
 export function useAccesos() {
 
@@ -80,7 +110,32 @@ export function useAccesos() {
       (mayor, u) => Math.max(mayor, u.id), 0
     ) + 1
 
-    usuarios.value.push({ id: siguienteId, ...datos })
+    // ======================================================
+    // CAMBIO AÑADIDO:
+    // Asigna automáticamente una contraseña al usuario nuevo.
+    // Si el correo ya existe en otro sistema, conserva
+    // la contraseña que tiene asignada.
+    // ======================================================
+
+    const existente = usuarios.value.find(u =>
+      u.correo.trim().toLowerCase() === datos.correo.trim().toLowerCase()
+    )
+
+    const nuevoUsuario: Usuario = {
+      id: siguienteId,
+      ...datos,
+      password: existente?.password ??
+        passwordsOriginales[datos.correo.trim().toLowerCase()] ??
+        PASSWORD_DEFAULT
+    }
+
+    usuarios.value.push(nuevoUsuario)
+
+    // Devuelve los datos del usuario registrado para mostrar
+    // su correo y contraseña en el mensaje de confirmación.
+    return nuevoUsuario
+
+    // FIN DEL CAMBIO AÑADIDO.
   }
 
   function actualizarUsuario(id: number, datos: Omit<Usuario, 'id' | 'sistemaId'>) {
@@ -96,6 +151,53 @@ export function useAccesos() {
     return usuario.activo
   }
 
+  // ======================================================
+  // CAMBIO AÑADIDO ANTERIORMENTE:
+  // VALIDACIÓN DEL ESTADO DEL USUARIO.
+  //
+  // Verifica si el usuario está activo o desactivado.
+  // Si está desactivado, no podrá iniciar sesión.
+  // Si vuelve a activarse, podrá ingresar normalmente.
+  // Si pertenece a varios sistemas, debe estar activo
+  // en al menos uno de ellos.
+  // ======================================================
+  function usuarioEstaActivo(correo: string): boolean {
+    if (typeof correo !== 'string') return false
+
+    const buscado = correo.trim().toLowerCase()
+
+    return usuarios.value.some(u =>
+      u.correo.trim().toLowerCase() === buscado &&
+      u.activo === true
+    )
+  }
+  // FIN DEL CAMBIO AÑADIDO.
+
+  // ======================================================
+  // CAMBIO AÑADIDO:
+  // VALIDACIÓN DE CREDENCIALES DE LOS USUARIOS REGISTRADOS.
+  //
+  // Busca al usuario mediante su correo y contraseña.
+  // Permite iniciar sesión a los usuarios nuevos sin
+  // agregarlos manualmente al código del Login.
+  //
+  // Si el usuario está desactivado, devuelve su registro
+  // para que el Login muestre el mensaje correspondiente.
+  // ======================================================
+  function buscarUsuarioLogin(correo: string, password: string) {
+
+    const buscado = correo.trim().toLowerCase()
+
+    const coincidencias = usuarios.value.filter(u =>
+      u.correo.trim().toLowerCase() === buscado &&
+      u.password === password
+    )
+
+    return coincidencias.find(u => u.activo === true)
+      ?? coincidencias[0]
+  }
+  // FIN DEL CAMBIO AÑADIDO.
+
   return {
     usuarios,
     rolesDeMetodologia,
@@ -104,6 +206,14 @@ export function useAccesos() {
     correoExiste,
     agregarUsuario,
     actualizarUsuario,
-    alternarActivo
+    alternarActivo,
+
+    // CAMBIO AÑADIDO ANTERIORMENTE:
+    // Permite verificar el estado desde el Login y Router.
+    usuarioEstaActivo,
+
+    // CAMBIO AÑADIDO:
+    // Permite validar las credenciales de los usuarios nuevos.
+    buscarUsuarioLogin
   }
 }

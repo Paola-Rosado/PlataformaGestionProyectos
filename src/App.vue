@@ -10,7 +10,7 @@
 
 <style>
 
-/*
+/**
   Estilos generales de toda la aplicación.
 */
 

@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 
 // ======================================================
@@ -15,21 +14,21 @@ import { useRouter } from 'vue-router'
 
 import { useAccesos } from '../composables/UseAccesos'
 
+// CAMBIO AÑADIDO: Manejo de cookies.
+import Cookies from 'js-cookie'
+
 // Instancia del enrutador.
 const router = useRouter()
-const correo = ref('')
-const password = ref('')
-
-const CInvalida = ref(false)
-const camposVacios = ref(false)
-const correoVacio = ref(false)
-const passwordVacio = ref(false)
-
-const correoInvalido = ref(false)
-const passwordInvalida = ref(false)
 
 // Obtiene la misma lista de usuarios que utiliza UsersView.
-const { usuarios: usuariosRegistrados } = useAccesos()
+// CAMBIO AÑADIDO:
+// Permite validar las credenciales de los usuarios nuevos.
+const {
+  usuarios: usuariosRegistrados,
+  buscarUsuarioLogin,
+  nombreCompleto
+} = useAccesos()
+// FIN DEL CAMBIO AÑADIDO.
 
 // ======================================================
 // 2. CAMPOS DEL FORMULARIO
@@ -58,12 +57,15 @@ const passwordVacio = ref(false)
 
 // Indica si la cuenta está desactivada o no está registrada.
 const cuentaNoDisponible = ref(false)
+
+
 // ======================================================
 // 4. USUARIOS DEL SISTEMA
 // ======================================================
 
 /*
   PERMISOS:
+
   1 = Sin acceso
   2 = Solo consultar
   3 = Consultar y modificar
@@ -83,7 +85,12 @@ const cuentaNoDisponible = ref(false)
 */
 
 const usuarios = [
-   {
+
+  // ----------------------------------------------------
+  // ADMINISTRADOR
+  // ----------------------------------------------------
+  {
+    nombre: 'Paola Pech',
     correo: 'paola@gmail.com',
     password: '1234',
     rol: 'Administrador',
@@ -148,25 +155,338 @@ const usuarios = [
 ]
 
 
-  // Limpiar mensajes anteriores
-  CInvalida.value = false
-  camposVacios.value = false
-  correoVacio.value = false
-  passwordVacio.value = false
-  correoInvalido.value = false
-  passwordInvalida.value = false
+// ======================================================
+// 5. MOSTRAR USUARIOS EXTERNOS
+// ======================================================
 
-  // Verificar qué campos están vacíos
-  correoVacio.value = correo.value === ''
-  passwordVacio.value = password.value === ''
+// false: las opciones están ocultas.
+// true: muestra Monserrath y Gabriela.
+const mostrarExternos = ref(false)
 
-  // Si algún campo está vacío
-  if (correoVacio.value || passwordVacio.value) {
-    camposVacios.value = true
-    return
+
+// ======================================================
+// 6. VARIABLES DEL CAPTCHA
+// ======================================================
+
+/*
+  El CAPTCHA genera un código de cinco caracteres.
+
+  Ejemplos:
+  KYvH6
+  M8pQ3
+  T7xB4
+
+  Distingue mayúsculas y minúsculas.
+*/
+
+// Guarda el código generado.
+const codigoCaptcha = ref('')
+
+// Guarda lo que escribe el usuario.
+const respuestaCaptcha = ref('')
+
+// Almacena los mensajes de error del CAPTCHA.
+const captchaError = ref('')
+
+// Referencia al canvas donde se dibujará el código.
+const canvasCaptcha = ref<HTMLCanvasElement | null>(null)
+
+
+// ======================================================
+// 7. GENERAR CÓDIGO CAPTCHA
+// ======================================================
+
+/**
+ * generarCaptcha()
+ *
+ * Genera un código aleatorio de cinco caracteres.
+ *
+ * Utiliza letras mayúsculas, minúsculas y números.
+ * Excluye caracteres que pueden confundirse.
+ *
+ * También limpia la respuesta y errores anteriores.
+ */
+
+const generarCaptcha = (): void => {
+
+  // Caracteres que pueden aparecer.
+  const caracteres =
+    'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+
+  // Aquí se construirá el código.
+  let codigo = ''
+
+  // Obtiene números aleatorios del navegador.
+  // Se utiliza para seleccionar los caracteres.
+  const numeros = new Uint32Array(5)
+
+  crypto.getRandomValues(numeros)
+
+  // Recorre cinco posiciones.
+  for (let i = 0; i < 5; i++) {
+
+    // Selecciona una posición de la cadena.
+    const indice = numeros[i]! % caracteres.length
+
+    // Agrega el carácter seleccionado.
+    codigo += caracteres.charAt(indice)
   }
 
-  // Los campos ya están llenos
+  // Guarda el nuevo código.
+  codigoCaptcha.value = codigo
+
+  // Limpia lo que escribió el usuario.
+  respuestaCaptcha.value = ''
+
+  // Elimina los mensajes de error anteriores.
+  captchaError.value = ''
+}
+
+
+// ======================================================
+// 8. DIBUJAR CAPTCHA
+// ======================================================
+
+/**
+ * dibujarCaptcha()
+ *
+ * Dibuja el código dentro de un canvas HTML.
+ *
+ * Agrega:
+ * - Fondo rosado.
+ * - Líneas decorativas.
+ * - Letras y números.
+ * - Inclinación de caracteres.
+ * - Diferentes posiciones.
+ *
+ * Esto hace que el CAPTCHA tenga una apariencia
+ * similar a los códigos visuales tradicionales.
+ */
+
+const dibujarCaptcha = (): void => {
+
+  // Obtiene el canvas del template.
+  const canvas = canvasCaptcha.value
+
+  // Si el canvas no existe, termina.
+  if (!canvas) return
+
+  // Obtiene las herramientas de dibujo.
+  const ctx = canvas.getContext('2d')
+
+  // Si no se puede dibujar, termina.
+  if (!ctx) return
+
+  // Limpia completamente el dibujo anterior.
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  )
+
+  // ----------------------------------------------------
+  // DIBUJAR FONDO
+  // ----------------------------------------------------
+
+  ctx.fillStyle = '#F8EEEE'
+
+  ctx.fillRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  )
+
+  // ----------------------------------------------------
+  // DIBUJAR LÍNEAS DECORATIVAS
+  // ----------------------------------------------------
+
+  // Genera seis líneas aleatorias.
+  for (let i = 0; i < 6; i++) {
+
+    ctx.beginPath()
+
+    // Punto inicial de la línea.
+    ctx.moveTo(
+      Math.random() * canvas.width,
+      Math.random() * canvas.height
+    )
+
+    // Punto final de la línea.
+    ctx.lineTo(
+      Math.random() * canvas.width,
+      Math.random() * canvas.height
+    )
+
+    // Color de las líneas.
+    ctx.strokeStyle = '#D6A4A4'
+
+    // Grosor de las líneas.
+    ctx.lineWidth = 1
+
+    // Dibuja la línea.
+    ctx.stroke()
+  }
+
+  // ----------------------------------------------------
+  // DIBUJAR CARACTERES
+  // ----------------------------------------------------
+
+  // Recorre cada letra o número del código.
+  for (let i = 0; i < codigoCaptcha.value.length; i++) {
+
+    // Guarda la configuración actual del dibujo.
+    ctx.save()
+
+    // Calcula la posición horizontal.
+    const x = 30 + i * 43
+
+    // Cambia ligeramente la altura del carácter.
+    const y = 45 + Math.random() * 12
+
+    // Mueve el punto de dibujo.
+    ctx.translate(x, y)
+
+    // Inclina el carácter aleatoriamente.
+    ctx.rotate(
+      (Math.random() - 0.5) * 0.4
+    )
+
+    // Configura la tipografía.
+    ctx.font = 'bold 35px Georgia'
+
+    // Alterna colores entre rojo y gris oscuro.
+    ctx.fillStyle = i % 2 === 0
+      ? '#9C252A'
+      : '#323238'
+
+    // Centra cada carácter.
+    ctx.textAlign = 'center'
+
+    // Dibuja la letra o número.
+    ctx.fillText(
+      codigoCaptcha.value[i]!,
+      0,
+      0
+    )
+
+    // Recupera la configuración original.
+    ctx.restore()
+  }
+
+}
+
+
+// ======================================================
+// 9. VALIDAR CAPTCHA
+// ======================================================
+
+/**
+ * validarCaptcha()
+ *
+ * Comprueba si el usuario escribió correctamente
+ * los cinco caracteres.
+ *
+ * Devuelve:
+ * true: respuesta correcta.
+ * false: respuesta incorrecta o vacía.
+ */
+
+const validarCaptcha = (): boolean => {
+
+  // Elimina espacios al principio y al final.
+  const respuesta = respuestaCaptcha.value.trim()
+
+  // ----------------------------------------------------
+  // VERIFICAR CAMPO VACÍO
+  // ----------------------------------------------------
+
+  if (respuesta === '') {
+
+    captchaError.value =
+      'Por favor, completa el CAPTCHA.'
+
+    return false
+  }
+
+  // ----------------------------------------------------
+  // COMPARAR CÓDIGOS
+  // ----------------------------------------------------
+
+  // La comparación distingue mayúsculas y minúsculas.
+  if (respuesta !== codigoCaptcha.value) {
+
+    // Genera otro CAPTCHA.
+    generarCaptcha()
+
+    // Muestra el mensaje de error.
+    captchaError.value =
+      'Código incorrecto. Intenta con el nuevo CAPTCHA.'
+
+    return false
+  }
+
+  // ----------------------------------------------------
+  // CAPTCHA CORRECTO
+  // ----------------------------------------------------
+
+  captchaError.value = ''
+
+  return true
+}
+
+
+// ======================================================
+// 10. CICLO DE VIDA DEL CAPTCHA
+// ======================================================
+
+/**
+ * onMounted()
+ *
+ * Se ejecuta cuando Vue termina de montar
+ * el componente en la página.
+ *
+ * Genera el primer código CAPTCHA.
+ */
+
+onMounted(() => {
+
+  generarCaptcha()
+})
+
+/**
+ * watch()
+ *
+ * Observa los cambios del código CAPTCHA.
+ *
+ * Cuando se genera un nuevo código,
+ * actualiza automáticamente el canvas.
+ */
+
+watch(codigoCaptcha, () => {
+
+  dibujarCaptcha()
+})
+
+
+// ======================================================
+// 11. LIMPIAR ERRORES
+// ======================================================
+
+/**
+ * limpiarErrores()
+ *
+ * Elimina los mensajes de error relacionados
+ * con el correo y la contraseña.
+ *
+ * No borra el CAPTCHA.
+ */
+
+const limpiarErrores = (): void => {
+
+  CInvalida.value = false
+
   camposVacios.value = false
 
   correoVacio.value = false
@@ -189,8 +509,11 @@ const usuarios = [
  *
  * Completa automáticamente el correo y contraseña.
  */
+
 const seleccionarUsuario = (
+
   usuario: typeof usuarios[number]
+
 ): void => {
 
   // Coloca las credenciales.
@@ -219,6 +542,7 @@ const seleccionarUsuario = (
  * - Administrador.
  * - Interno.
  */
+
 const llenarCredenciales = (rol: string): void => {
 
   // Busca el primer usuario con ese rol.
@@ -240,6 +564,7 @@ const llenarCredenciales = (rol: string): void => {
     // Oculta las opciones externas.
     mostrarExternos.value = false
   }
+
 }
 
 
@@ -253,6 +578,7 @@ const llenarCredenciales = (rol: string): void => {
  * Muestra u oculta los botones correspondientes
  * a Monserrath y Gabriela.
  */
+
 const mostrarUsuariosExternos = (): void => {
 
   // Cambia el estado del menú.
@@ -281,6 +607,7 @@ const mostrarUsuariosExternos = (): void => {
  * 5. Guarda los datos del usuario.
  * 6. Redirige al panel.
  */
+
 const iniciarSesion = (): void => {
 
   // ----------------------------------------------------
@@ -321,56 +648,147 @@ const iniciarSesion = (): void => {
 
   // Busca un usuario que tenga el correo y
   // contraseña proporcionados.
-  const usuarioEncontrado = usuarios.find(
-    usuario => usuario.correo === correo.value
+
+  // ======================================================
+  // CAMBIO AÑADIDO:
+  // Busca las credenciales de los usuarios registrados
+  // desde el módulo Usuarios, incluyendo los nuevos.
+  // ======================================================
+
+  const usuarioEncontrado = buscarUsuarioLogin(
+    correo.value,
+    password.value
   )
 
-  // Si el correo no existe
+  // FIN DEL CAMBIO AÑADIDO.
+
+  // ----------------------------------------------------
+  // PASO 5. VALIDAR CREDENCIALES
+  // ----------------------------------------------------
+
+  // Si el usuario no existe o los datos no coinciden.
   if (!usuarioEncontrado) {
-    correoInvalido.value = true
+
+    CInvalida.value = true
+
+    // Genera otro CAPTCHA para el siguiente intento.
+    generarCaptcha()
+
     return
   }
 
   // ----------------------------------------------------
-// PASO 5.1. VERIFICAR SI LA CUENTA ESTÁ ACTIVA
-// ----------------------------------------------------
+  // PASO 5.1. VERIFICAR SI LA CUENTA ESTÁ ACTIVA
+  // ----------------------------------------------------
 
-// Busca el usuario en la lista compartida con UsersView.
-const usuarioRegistrado = usuariosRegistrados.value.find(
-  usuario =>
-    usuario.correo.trim().toLowerCase() ===
-    usuarioEncontrado.correo.trim().toLowerCase()
-)
+  // Busca el usuario en la lista compartida con UsersView.
 
-// Si no está registrado o se encuentra desactivado,
-// no permite iniciar sesión.
-if (!usuarioRegistrado || !usuarioRegistrado.activo) {
+  // ======================================================
+  // CAMBIO AÑADIDO:
+  // Comprueba que el usuario encontrado esté activo.
+  // ======================================================
 
-  cuentaNoDisponible.value = true
+  const usuarioRegistrado = usuariosRegistrados.value.find(
+    usuario =>
+      usuario.id === usuarioEncontrado.id
+  )
 
-  generarCaptcha()
+  // FIN DEL CAMBIO AÑADIDO.
 
-  return
-}
+  // Si no está registrado o se encuentra desactivado,
+  // no permite iniciar sesión.
+  if (!usuarioRegistrado || !usuarioRegistrado.activo) {
+
+    cuentaNoDisponible.value = true
+
+    generarCaptcha()
+
+    return
+  }
 
   // ----------------------------------------------------
   // PASO 6. PREPARAR DATOS DE SESIÓN
   // ----------------------------------------------------
 
+  // ======================================================
+  // CAMBIO AÑADIDO:
+  // Conserva los roles y permisos de los usuarios originales.
+  // ======================================================
+
+  const usuarioOriginal = usuarios.find(
+    usuario =>
+      usuario.correo.trim().toLowerCase() ===
+      usuarioEncontrado.correo.trim().toLowerCase()
+  )
+
+  // FIN DEL CAMBIO AÑADIDO.
+
   // Conserva los datos que utiliza el panel.
   // No incluye la contraseña.
   const usuarioSesion = {
 
-    nombre: usuarioEncontrado.nombre,
+    // CAMBIO AÑADIDO:
+    // Obtiene el nombre completo del usuario registrado.
+    nombre: usuarioOriginal?.nombre ?? nombreCompleto(usuarioEncontrado),
 
     correo: usuarioEncontrado.correo,
 
-    rol: usuarioEncontrado.rol,
+    // CAMBIO AÑADIDO:
+    // Conserva el rol original o utiliza el rol registrado.
+    rol: usuarioOriginal?.rol ?? usuarioEncontrado.rol,
 
-    permisos: usuarioEncontrado.permisos
+    // CAMBIO AÑADIDO:
+    // Los usuarios originales conservan sus permisos.
+    // Los usuarios nuevos reciben permisos de consulta.
+    permisos: usuarioOriginal?.permisos ?? {
+      sistemas: 2,
+      usuarios: 1,
+      historias: 2
+    }
   }
 
-  // Si todo está correcto
+  // ----------------------------------------------------
+  // PASO 7. GUARDAR DATOS
+  // ----------------------------------------------------
+
+  // Guarda la información para la demostración.
+  localStorage.setItem(
+
+    'user',
+
+    JSON.stringify(usuarioSesion)
+
+  )
+
+  // ======================================================
+  // CAMBIO AÑADIDO: COOKIES
+  //
+  // Guarda la información de la sesión en una cookie
+  // llamada "sesion", sin almacenar la contraseña.
+  //
+  // expires: establece una duración de un día.
+  // sameSite: restringe el envío entre sitios.
+  // secure: utiliza HTTPS cuando está disponible.
+  // path: permite utilizar la cookie en toda la plataforma.
+  //
+  // Se conserva localStorage para no afectar el
+  // funcionamiento original de los demás módulos.
+  // ======================================================
+
+  Cookies.set('sesion', JSON.stringify(usuarioSesion), {
+    expires: 1,
+    sameSite: 'strict',
+    secure: window.location.protocol === 'https:',
+    path: '/'
+  })
+
+  // FIN DEL CAMBIO AÑADIDO: COOKIES.
+
+  // ----------------------------------------------------
+  // PASO 8. REDIRECCIÓN
+  // ----------------------------------------------------
+
+  // Navega al panel principal.
   router.push('/panel')
 }
 
@@ -385,19 +803,8 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
 
   <main class="login-page">
 
-      <div class="campo">
-        <label>Correo o usuario</label>
-        <input
-          v-model="correo"
-          type="email"
-          placeholder="Correo electrónico"
-          :class="{ 'input-error': correoVacio || correoInvalido }"
-        />
-        <p v-if="correoInvalido" class="mensaje-error campo-error">
-        <span class="icono-error">!</span>
-        <span>Correo no existe o es inválido</span>
-      </p>
-      </div>
+    <!-- TARJETA DEL LOGIN -->
+    <section class="login-card">
 
       <!-- ================================================
            2. ENCABEZADO
@@ -432,6 +839,7 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
         @submit.prevent evita que la página se recargue.
         Ejecuta iniciarSesion cuando se presiona Entrar.
       -->
+
       <form @submit.prevent="iniciarSesion" novalidate>
 
         <!-- ============================================
@@ -445,29 +853,18 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
           </label>
 
           <input
-            v-model="password"
-            :type="mostrarPassword ? 'text' : 'password'"
-            placeholder="Contraseña"
-            :class="{ 'input-error': passwordVacio || passwordInvalida }"
+            id="correo"
+            v-model="correo"
+            type="email"
+            placeholder="Ingresa tu correo"
+            autocomplete="username"
+            :class="{
+              'input-error': correoVacio || CInvalida
+            }"
           />
 
         </div>
-        <p v-if="passwordInvalida" class="mensaje-error campo-error">
-        <span class="icono-error">!</span>
-        <span>Contraseña incorrecta</span>
-      </p>
-      </div>
-      <!-- Mensaje cuando faltan campos -->
-      <p v-if="camposVacios" class="mensaje-error">
-        <span class="icono-error">!</span>
-        <span>Por favor completa todos los campos</span>
-      </p>
 
-      <!-- Mensaje cuando las credenciales son incorrectas -->
-      <p v-if="CInvalida" class="mensaje-error">
-        <span class="icono-error">!</span>
-        <span>Correo o contraseña incorrectos</span>
-      </p>
 
         <!-- ============================================
              CONTRASEÑA
@@ -511,6 +908,7 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
               Canvas donde se dibujan los caracteres.
               El dibujo se realiza desde TypeScript.
             -->
+
             <canvas
               ref="canvasCaptcha"
               width="230"
@@ -597,7 +995,7 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
           Tu cuenta se encuentra desactivada o no está registrada.
           Comunícate con el administrador.
         </div>
-        
+
         <!-- ============================================
              6. BOTÓN ENTRAR
         ============================================= -->
@@ -708,28 +1106,25 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
 
 
 <style scoped>
-.login-card {
-  width: 90%;
-  max-width: 400px;
-  margin: 30px auto;
-  padding: 30px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  background-color: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-}
 
 /* ======================================================
    1. PÁGINA GENERAL
 ====================================================== */
 
 .login-page {
+
   min-height: 100vh;
+
   display: flex;
+
   justify-content: center;
+
   align-items: center;
+
   padding: 12px 20px;
+
   background: #f7f3f3;
+
   box-sizing: border-box;
 }
 
@@ -739,13 +1134,21 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
 ====================================================== */
 
 .login-card {
+
   width: 100%;
+
   max-width: 430px;
+
   padding: 22px 30px;
+
   background: #FEFEFE;
+
   border: 1px solid #eadada;
+
   border-radius: 16px;
+
   box-shadow: 0 10px 30px rgba(34, 34, 35, 0.1);
+
   box-sizing: border-box;
 }
 
@@ -755,35 +1158,53 @@ if (!usuarioRegistrado || !usuarioRegistrado.activo) {
 ====================================================== */
 
 .login-header {
+
   text-align: center;
+
   margin-bottom: 18px;
 }
 
 .etiqueta {
+
   margin: 0 0 8px;
+
   color: #B62A2D;
+
   font-size: 12px;
+
   font-weight: 700;
+
   letter-spacing: 3px;
 }
 
 .login-header h1 {
+
   margin: 0;
+
   color: #222223;
+
   font-size: 24px;
+
   line-height: 1.2;
 }
 
 .descripcion {
+
   margin: 8px 0 0;
+
   color: #707070;
+
   font-size: 13px;
 }
 
 h2 {
+
   margin: 0 0 12px;
+
   color: #222223;
+
   text-align: center;
+
   font-size: 18px;
 }
 
@@ -793,38 +1214,59 @@ h2 {
 ====================================================== */
 
 .campo {
+
   display: flex;
+
   flex-direction: column;
+
   margin-bottom: 14px;
 }
 
 label {
+
   display: block;
+
   margin-bottom: 5px;
+
   color: #222223;
+
   font-size: 13px;
+
   font-weight: 600;
 }
 
 input {
+
   width: 100%;
+
   padding: 10px 13px;
+
   border: 1px solid #cccccc;
+
   border-radius: 8px;
+
   color: #222223;
+
   background: #FEFEFE;
+
   font-size: 14px;
+
   box-sizing: border-box;
+
   transition: 0.2s;
 }
 
 input:focus {
+
   outline: none;
+
   border-color: #B62A2D;
+
   box-shadow: 0 0 0 3px rgba(182, 42, 45, 0.1);
 }
 
 .input-error {
+
   border-color: #B62A2D;
 }
 
@@ -835,78 +1277,120 @@ input:focus {
 
 /* Contenedor general del CAPTCHA */
 .captcha-contenedor {
+
   margin-bottom: 12px;
+
   padding: 10px;
+
   background: #fdf8f8;
+
   border: 1px solid #eadada;
+
   border-radius: 10px;
 }
 
 /* Título de verificación */
 .captcha-titulo {
+
   margin: 0 0 6px;
+
   color: #222223;
+
   font-size: 14px;
+
   font-weight: 700;
 }
 
 /* Texto de instrucciones */
 .captcha-descripcion {
+
   margin: 6px 0 14px;
+
   color: #707070;
+
   font-size: 12px;
+
   line-height: 1.5;
 }
 
 /* Imagen y botón de actualización */
 .captcha-fila {
+
   display: flex;
+
   align-items: center;
+
   gap: 10px;
+
   margin-bottom: 8px;
 }
 
 /* Área donde se dibuja el CAPTCHA */
 .captcha-canvas {
+
   display: block;
+
   width: 230px;
+
   max-width: calc(100% - 45px);
+
   height: auto;
+
   background: #F8EEEE;
+
   border: 1px solid #E6A8A8;
+
   border-radius: 8px;
+
   box-sizing: border-box;
 }
 
 /* Botón para generar otro código */
 .captcha-recargar {
+
   flex-shrink: 0;
+
   padding: 10px 14px;
+
   background: #FEFEFE;
+
   color: #B62A2D;
+
   border: 1px solid #E6A8A8;
+
   border-radius: 8px;
+
   font-size: 25px;
+
   cursor: pointer;
+
   transition: 0.2s;
 }
 
 .captcha-recargar:hover {
+
   background: #f9e6e6;
+
   color: #8e1d22;
 }
 
 /* Campo para escribir los caracteres */
 .captcha-contenedor input {
+
   width: 100%;
+
   letter-spacing: 1px;
 }
 
 /* Mensaje de CAPTCHA incorrecto */
 .captcha-error {
+
   margin: 10px 0 0;
+
   color: #B62A2D;
+
   font-size: 12px;
+
   font-weight: 600;
 }
 
@@ -916,12 +1400,19 @@ input:focus {
 ====================================================== */
 
 .mensaje-error {
+
   margin-bottom: 15px;
+
   padding: 10px 12px;
+
   border-left: 4px solid #B62A2D;
+
   border-radius: 6px;
+
   background: #f9e6e6;
+
   color: #B62A2D;
+
   font-size: 14px;
 }
 
@@ -931,73 +1422,31 @@ input:focus {
 ====================================================== */
 
 .btn-entrar {
+
   width: 100%;
+
   padding: 13px;
+
   border: none;
+
   border-radius: 8px;
+
   background: #B62A2D;
+
   color: #FEFEFE;
+
   font-size: 15px;
+
   font-weight: 700;
+
   cursor: pointer;
-  font-size: 16px;
-  background-color: #1877f2;
-  color: white;
-  font-weight: bold;
-  transition: background-color 0.2s ease;
+
+  transition: 0.2s;
 }
 
-button:hover {
-  background-color: #166fe5;
-}
+.btn-entrar:hover {
 
-.mensaje-error { 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 25px;
-  margin-bottom: 20px;
-  color: #d93025;
-  text-align: center;
-  font-size: 14px;
-}
-.campo-error {
-  justify-content: center;
-  margin-top: 5px;
-  margin-bottom: -15px;
-  text-align: center;
-}
-
-.icono-error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: 2px solid #d93025;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-
-.input-error {
-  border: 1px solid #d93025;
-}
-
-/* Adaptación para celular */
-/* RESPONSIVE: adapta el diseño del login para pantallas pequeñas como celulares */
-@media (max-width: 500px) {
-  .login-card {
-    width: min(90%, 400px);
-    box-sizing: border-box;
-  }
-
-  input,
-  button {
-    font-size: 14px;
-  }
+  background: #D5575E;
 }
 
 
@@ -1006,32 +1455,47 @@ button:hover {
 ====================================================== */
 
 .accesos-prueba {
+
   margin-top: 30px;
 }
 
 .separador {
+
   display: flex;
+
   align-items: center;
+
   gap: 10px;
 }
 
 .separador span {
+
   flex: 1;
+
   height: 1px;
+
   background: #E6A8A8;
 }
 
 .separador p {
+
   margin: 0;
+
   color: #666666;
+
   font-size: 12px;
+
   font-weight: 600;
 }
 
 .ayuda {
+
   margin: 12px 0;
+
   color: #777777;
+
   text-align: center;
+
   font-size: 12px;
 }
 
@@ -1041,25 +1505,39 @@ button:hover {
 ====================================================== */
 
 .botones-roles {
+
   display: grid;
+
   grid-template-columns: repeat(3, 1fr);
+
   gap: 8px;
 }
 
 .botones-roles button {
+
   padding: 9px 5px;
+
   border: 1px solid #E6A8A8;
+
   border-radius: 7px;
+
   background: #FEFEFE;
+
   color: #B62A2D;
+
   font-size: 12px;
+
   font-weight: 600;
+
   cursor: pointer;
+
   transition: 0.2s;
 }
 
 .botones-roles button:hover {
+
   background: #E6A8A8;
+
   color: #222223;
 }
 
@@ -1069,41 +1547,65 @@ button:hover {
 ====================================================== */
 
 .opciones-externos {
+
   margin-top: 15px;
+
   padding: 15px;
+
   border: 1px solid #E6A8A8;
+
   border-radius: 8px;
+
   background: #f8eeee;
 }
 
 .titulo-externos {
+
   margin: 0 0 12px;
+
   color: #222223;
+
   text-align: center;
+
   font-size: 13px;
+
   font-weight: 600;
 }
 
 .btn-usuario {
+
   width: 100%;
+
   margin-bottom: 8px;
+
   padding: 10px;
+
   border: 1px solid #E6A8A8;
+
   border-radius: 7px;
+
   background: #FEFEFE;
+
   color: #B62A2D;
+
   font-size: 13px;
+
   font-weight: 600;
+
   cursor: pointer;
+
   transition: 0.2s;
 }
 
 .btn-usuario:last-child {
+
   margin-bottom: 0;
 }
 
 .btn-usuario:hover {
+
   background: #E6A8A8;
+
   color: #222223;
 }
 
@@ -1116,27 +1618,34 @@ button:hover {
 @media (max-width: 500px) {
 
   .login-page {
+
     padding: 15px;
   }
 
   .login-card {
+
     padding: 25px 20px;
   }
 
   .login-header h1 {
+
     font-size: 22px;
   }
 
   .botones-roles {
+
     grid-template-columns: 1fr;
   }
 
   .captcha-contenedor {
+
     padding: 12px;
   }
 
   .captcha-recargar {
+
     padding: 8px 11px;
+
     font-size: 22px;
   }
 

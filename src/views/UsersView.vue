@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 /*
 ==========================================================
@@ -25,16 +24,22 @@ import { useRouter } from 'vue-router'
 import { UsersRound, Pencil } from 'lucide-vue-next'
 import { SistemaActivo } from '../router/index'
 import { useAccesos } from '../composables/UseAccesos'
-import { useSistemas } from '../composables/UseSistemas'
 import type { Usuario } from '../interfaces/Usuario'
 
 const router = useRouter()
 
-const { sistemaSeleccionadoGlobal, seleccionarSistema } = SistemaActivo()
-const { aplicarSistemaPorDefecto } = useSistemas()
-
-// Si entran directo a Usuarios, también se aplica el sistema por defecto.
-aplicarSistemaPorDefecto(sistemaSeleccionadoGlobal.value, seleccionarSistema)
+// ======================================================
+// CAMBIO AÑADIDO:
+// Obtener únicamente el sistema seleccionado manualmente
+// desde el módulo Sistemas.
+//
+// Se elimina la selección automática del sistema por defecto.
+//
+// Si no hay un sistema seleccionado, se muestra el mensaje
+// para que el usuario seleccione uno.
+// ======================================================
+const { sistemaSeleccionadoGlobal } = SistemaActivo()
+// FIN DEL CAMBIO AÑADIDO.
 
 const {
   rolesDeMetodologia,
@@ -91,16 +96,10 @@ function mostrarNotificacion(
 ==========================================================
 FORMULARIO (REGISTRAR / EDITAR)
 ==========================================================
-
-false = tabla de usuarios
-true = formulario
-
-Si usuarioEditando tiene valor, el formulario edita.
-Si es null, registra un usuario nuevo.
+false = tabla de usuarios | true = formulario
 */
 
 const mostrarFormulario = ref(false)
-const usuarioEditando = ref<Usuario | null>(null)
 
 // null = registrando un usuario nuevo | número = editando ese usuario.
 const idEnEdicion = ref<number | null>(null)
@@ -133,19 +132,9 @@ function limpiarFormulario() {
     rol: '',
     activo: true // Por defecto el usuario nuevo está activo.
   }
-
-  usuarioEditando.value = null
 }
 
 function abrirFormulario() {
-  if (!sistemaSeleccionadoGlobal.value) {
-    mostrarNotificacion(
-      'Primero selecciona un sistema.',
-      'error'
-    )
-    return
-  }
-
   mensaje.value = ''
   idEnEdicion.value = null
   limpiarFormulario()
@@ -189,23 +178,10 @@ function guardarUsuario() {
     return
   }
 
-  if (!correo || !nombre || !apellidoPaterno) {
-    mostrarNotificacion(
-      'Por favor, completa todos los campos obligatorios.',
-      'error'
-    )
-    return
-  }
-
-  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    correo
-  )
+  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)
 
   if (!correoValido) {
-    mostrarNotificacion(
-      'Escribe un correo electrónico válido.',
-      'error'
-    )
+    mostrarNotificacion('Escribe un correo electrónico válido.', 'error')
     return
   }
 
@@ -228,8 +204,29 @@ function guardarUsuario() {
     actualizarUsuario(idEnEdicion.value, datos)
     mostrarNotificacion('Usuario modificado correctamente.')
   } else {
-    agregarUsuario({ sistemaId: sistema.id, ...datos })
-    mostrarNotificacion('Usuario registrado correctamente.')
+
+    // ======================================================
+    // CAMBIO AÑADIDO ANTERIORMENTE:
+    // REGISTRO DE USUARIO CON CONTRASEÑA PREDETERMINADA.
+    //
+    // UseAccesos.ts asigna automáticamente la contraseña.
+    // Se muestra el correo, la contraseña y el estado
+    // del usuario en el mensaje de confirmación.
+    //
+    // Solamente podrá iniciar sesión si está activo.
+    // ======================================================
+    const nuevoUsuario = agregarUsuario({
+      sistemaId: sistema.id,
+      ...datos
+    })
+
+    mostrarNotificacion(
+      `Usuario registrado correctamente. ` +
+      `Correo: ${nuevoUsuario.correo} | ` +
+      `Contraseña: ${nuevoUsuario.password} | ` +
+      `Estado: ${nuevoUsuario.activo ? 'Activo' : 'Inactivo'}.`
+    )
+    // FIN DEL CAMBIO AÑADIDO.
   }
 
   limpiarFormulario()
@@ -240,9 +237,6 @@ function guardarUsuario() {
 /*
 ==========================================================
 ACTIVAR / DESACTIVAR
-==========================================================
-
-Esta función es utilizada por la palanquita.
 ==========================================================
 */
 
@@ -272,7 +266,6 @@ function cambiarEstado(usuario: Usuario) {
           </h2>
         </div>
 
-        
       </div>
 
       <p>Administración de los usuarios del sistema seleccionado.</p>
@@ -317,14 +310,13 @@ function cambiarEstado(usuario: Usuario) {
           <button
             type="button"
             class="btn-agregar"
-            :disabled="!sistemaSeleccionadoGlobal"
             @click="abrirFormulario"
           >
             + Agregar usuario
           </button>
         </div>
 
-        <!-- MENSAJES -->
+        <!-- Mensajes -->
         <div
           v-if="mensaje"
           class="mensaje"
@@ -343,22 +335,9 @@ function cambiarEstado(usuario: Usuario) {
           </button>
         </div>
 
-        <!-- SIN SISTEMA -->
-        <div
-          v-if="!sistemaSeleccionadoGlobal"
-          class="estado-vacio"
-        >
-          <h4>Selecciona un sistema</h4>
-          <p>
-            Primero selecciona un sistema en el módulo
-            Sistemas para administrar sus usuarios.
-          </p>
-        </div>
-
-        <!-- TABLA -->
-        <div v-else class="contenedor-tabla">
+        <!-- TABLA DE USUARIOS -->
+        <div class="contenedor-tabla">
           <table class="tabla-usuarios">
-
             <thead>
               <tr>
                 <th>No.</th>
@@ -378,12 +357,6 @@ function cambiarEstado(usuario: Usuario) {
                 <!-- Número consecutivo dentro del sistema -->
                 <td>{{ indice + 1 }}</td>
 
-                <!-- NOMBRE COMPLETO -->
-                <td>
-                  {{ nombreCompleto(usuario) }}
-                </td>
-
-                <!-- ROL -->
                 <td>
                   {{ usuario.correo }}
                   <span v-if="!usuario.activo" class="chip-inactivo">Inactivo</span>
@@ -433,7 +406,6 @@ function cambiarEstado(usuario: Usuario) {
                 </td>
               </tr>
             </tbody>
-
           </table>
         </div>
       </div>
@@ -449,7 +421,7 @@ function cambiarEstado(usuario: Usuario) {
           </h3>
         </div>
 
-        <!-- MENSAJES -->
+        <!-- Mensajes (por ejemplo, errores de validación) -->
         <div
           v-if="mensaje"
           class="mensaje"
@@ -470,20 +442,15 @@ function cambiarEstado(usuario: Usuario) {
 
         <form @submit.prevent="guardarUsuario">
 
-          <h4 class="subtitulo-seccion">
-            DATOS DEL USUARIO
-          </h4>
-
+          <h4 class="subtitulo-seccion">DATOS DEL USUARIO</h4>
           <hr class="divisor-seccion" />
 
-          <!-- CORREO Y NOMBRE -->
           <div class="fila-campos">
-
+            <!-- CORREO (NOMBRE DE USUARIO) -->
             <div class="campo">
               <label for="correo">
                 Correo electrónico
               </label>
-
               <input
                 id="correo"
                 v-model="formulario.correo"
@@ -493,9 +460,9 @@ function cambiarEstado(usuario: Usuario) {
               />
             </div>
 
+            <!-- NOMBRE -->
             <div class="campo">
               <label for="nombre">Nombre</label>
-
               <input
                 id="nombre"
                 v-model="formulario.nombre"
@@ -504,17 +471,12 @@ function cambiarEstado(usuario: Usuario) {
                 required
               />
             </div>
-
           </div>
 
-          <!-- APELLIDOS -->
           <div class="fila-campos">
-
+            <!-- APELLIDO PATERNO -->
             <div class="campo">
-              <label for="apellidoPaterno">
-                Apellido paterno
-              </label>
-
+              <label for="apellidoPaterno">Apellido paterno</label>
               <input
                 id="apellidoPaterno"
                 v-model="formulario.apellidoPaterno"
@@ -524,11 +486,9 @@ function cambiarEstado(usuario: Usuario) {
               />
             </div>
 
+            <!-- APELLIDO MATERNO -->
             <div class="campo">
-              <label for="apellidoMaterno">
-                Apellido materno
-              </label>
-
+              <label for="apellidoMaterno">Apellido materno</label>
               <input
                 id="apellidoMaterno"
                 v-model="formulario.apellidoMaterno"
@@ -536,13 +496,13 @@ function cambiarEstado(usuario: Usuario) {
                 placeholder="Segundo apellido (opcional)"
               />
             </div>
-
           </div>
 
           <h4 class="subtitulo-seccion">ROL Y ESTADO</h4>
           <hr class="divisor-seccion" />
 
           <div class="fila-campos">
+
             <!-- ROL (SEGÚN LA METODOLOGÍA DEL SISTEMA) -->
             <div class="campo">
               <label for="rol">
@@ -574,7 +534,6 @@ function cambiarEstado(usuario: Usuario) {
           </div>
 
           <div class="acciones-formulario">
-
             <button
               type="button"
               class="btn-cancelar"
@@ -586,24 +545,16 @@ function cambiarEstado(usuario: Usuario) {
             <button type="submit" class="btn-guardar">
               {{ idEnEdicion !== null ? 'Guardar cambios' : 'Guardar usuario' }}
             </button>
-
           </div>
 
         </form>
       </div>
-
     </div>
 
   </section>
 </template>
 
 <style scoped>
-/*
-==========================================================
-ESTILOS GENERALES
-==========================================================
-*/
-
 .modulo {
   width: 100%;
 }
@@ -649,12 +600,7 @@ header p:last-child {
   color: #777777;
 }
 
-/*
-==========================================================
-SISTEMA SELECCIONADO
-==========================================================
-*/
-
+/* ETIQUETA DEL SISTEMA SELECCIONADO */
 .badge-sistema {
   display: inline-flex;
   align-items: center;
@@ -681,12 +627,7 @@ SISTEMA SELECCIONADO
   font-weight: 500;
 }
 
-/*
-==========================================================
-TARJETA
-==========================================================
-*/
-
+/* TARJETA */
 .tarjeta {
   padding: 30px;
   border: 1px solid #eeeeee;
@@ -706,19 +647,13 @@ TARJETA
   line-height: 1.6;
 }
 
-/*
-==========================================================
-MENSAJES
-==========================================================
-*/
-
+/* MENSAJES */
 .mensaje {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
   width: 100%;
-  box-sizing: border-box;
   padding: 14px 18px;
   margin: 0 0 20px;
   border: 1px solid transparent;
@@ -754,12 +689,7 @@ MENSAJES
   opacity: 0.7;
 }
 
-/*
-==========================================================
-ENCABEZADO DE TABLA
-==========================================================
-*/
-
+/* ENCABEZADO DE LA TABLA */
 .encabezado-tabla {
   display: flex;
   justify-content: space-between;
@@ -848,7 +778,6 @@ ENCABEZADO DE TABLA
 
 .estado-vacio {
   padding: 35px 15px;
-  text-align: center;
 }
 
 .estado-vacio h4 {
@@ -884,13 +813,12 @@ ENCABEZADO DE TABLA
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 9px 12px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: 1px solid #E5E5E5;
   border-radius: 8px;
   background: #FFFFFF;
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
   transition:
     background 0.2s ease,
@@ -956,75 +884,7 @@ ENCABEZADO DE TABLA
   outline-offset: 3px;
 }
 
-/*
-==========================================================
-INTERRUPTOR ACTIVAR / DESACTIVAR
-==========================================================
-*/
-
-.control-estado {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Base del interruptor */
-.switch {
-  position: relative;
-  width: 48px;
-  height: 26px;
-  padding: 0;
-  border: none;
-  border-radius: 30px;
-  background-color: #BDBDBD;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  flex-shrink: 0;
-}
-
-/* Interruptor encendido */
-.switch.activo {
-  background-color: #28A745;
-}
-
-/* Círculo blanco */
-.switch-circulo {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  background-color: #FFFFFF;
-  border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s ease;
-}
-
-/* Mover círculo a la derecha */
-.switch.activo .switch-circulo {
-  transform: translateX(22px);
-}
-
-/* Texto de estado activo */
-.texto-activo {
-  color: #28A745;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* Texto de estado inactivo */
-.texto-inactivo {
-  color: #888888;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/*
-==========================================================
-FORMULARIO
-==========================================================
-*/
-
+/* FORMULARIO */
 .encabezado-formulario {
   margin-bottom: 25px;
 }
@@ -1051,7 +911,7 @@ FORMULARIO
   min-width: 0;
 }
 
-.campo > label {
+.campo label {
   color: #222223;
   font-size: 14px;
   font-weight: 600;
@@ -1103,54 +963,6 @@ FORMULARIO
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
-
-.ayuda-campo {
-  margin: 0;
-  font-size: 12px;
-  color: #777777;
-}
-
-.error-campo {
-  margin: 0;
-  color: #B62A2D !important;
-  font-size: 13px;
-}
-
-/*
-==========================================================
-CHECKBOX ACTIVO DEL FORMULARIO
-==========================================================
-*/
-
-.checkbox-activo {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid #DDDDDD;
-  border-radius: 8px;
-  background: #FAFAFA;
-  cursor: pointer;
-}
-
-.checkbox-activo input {
-  width: 18px;
-  height: 18px;
-  accent-color: #B62A2D;
-  cursor: pointer;
-}
-
-.checkbox-activo span {
-  font-size: 14px;
-  font-weight: 600;
-  color: #222223;
-}
-
-/*
-==========================================================
-BOTONES DEL FORMULARIO
-==========================================================
-*/
 
 .acciones-formulario {
   display: flex;
@@ -1215,11 +1027,6 @@ BOTONES DEL FORMULARIO
 
 @media (max-width: 500px) {
   .encabezado-titulo {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .acciones-tabla {
     flex-direction: column;
     align-items: flex-start;
   }

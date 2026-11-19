@@ -1,4 +1,3 @@
-
 import {
   createRouter,
   createWebHistory
@@ -10,13 +9,12 @@ import SystemsView from '../views/SystemsView.vue'
 import UsuariosView from '../views/UsersView.vue'
 import HistoriasView from '../views/HistoriasView.vue'
 
-////PERMISOS//////
-export const NivelPermisos = {
-  Desactivado: 1,
-  Lectura: 2,
-  Escritura: 3,
-} as const; 
-export type NivelPermisosType = typeof NivelPermisos[keyof typeof NivelPermisos];
+import { ref } from 'vue'
+import type { Sistema } from '../interfaces/Sistema'
+
+// CAMBIO AÑADIDO: Manejo de cookies.
+import Cookies from 'js-cookie'
+// FIN DEL CAMBIO AÑADIDO.
 
 // Estado global del sistema seleccionado.
 const sistemaSeleccionadoGlobal = ref<Sistema | null>(null)
@@ -36,10 +34,10 @@ export function SistemaActivo() {
     }
   }
 
-export interface Usuario {
-  name: string;
-  isAdmin: boolean;
-  Permisos: PermisosUsuario;
+  return {
+    sistemaSeleccionadoGlobal,
+    seleccionarSistema
+  }
 }
 
 // Tipos de módulos permitidos.
@@ -109,6 +107,32 @@ router.beforeEach((to) => {
     return true
   }
 
+  // ======================================================
+  // CAMBIO AÑADIDO: VALIDACIÓN DE LA COOKIE DE SESIÓN.
+  //
+  // Recupera la cookie creada desde LoginComponent.vue.
+  //
+  // Si la cookie no existe o ha expirado, el usuario
+  // no podrá acceder a las rutas protegidas.
+  //
+  // Se eliminan únicamente los datos de la sesión
+  // y se redirige al inicio de sesión.
+  // ======================================================
+
+  const cookieSesion = Cookies.get('sesion')
+
+  if (to.meta.requiresAuth && !cookieSesion) {
+
+    localStorage.removeItem('user')
+    localStorage.removeItem('plataforma:sistemaActivo')
+
+    sistemaSeleccionadoGlobal.value = null
+
+    return { name: 'login' }
+  }
+
+  // FIN DEL CAMBIO AÑADIDO.
+
   const usuarioGuardado = localStorage.getItem('user')
 
   let usuario: any = null
@@ -123,12 +147,46 @@ router.beforeEach((to) => {
     localStorage.removeItem('user')
     localStorage.removeItem('plataforma:sistemaActivo')
 
+    // CAMBIO AÑADIDO:
+    // Elimina la cookie si ocurre un error en la sesión.
+    Cookies.remove('sesion', { path: '/' })
+    // FIN DEL CAMBIO AÑADIDO.
+
     return { name: 'login' }
   }
 
   if (to.meta.requiresAuth && !usuario) {
+
+    // CAMBIO AÑADIDO:
+    // Elimina la cookie si no existen datos del usuario.
+    Cookies.remove('sesion', { path: '/' })
+    // FIN DEL CAMBIO AÑADIDO.
+
     return { name: 'login' }
   }
+
+  // ======================================================
+  // CAMBIO AÑADIDO:
+  // Comprueba que la cookie corresponda a los mismos
+  // datos de sesión guardados en localStorage.
+  //
+  // Si los datos no coinciden, solicita iniciar sesión
+  // nuevamente.
+  // ======================================================
+
+  if (to.meta.requiresAuth && cookieSesion !== usuarioGuardado) {
+
+    Cookies.remove('sesion', { path: '/' })
+
+    localStorage.removeItem('user')
+    localStorage.removeItem('plataforma:sistemaActivo')
+
+    sistemaSeleccionadoGlobal.value = null
+
+    return { name: 'login' }
+  }
+
+  // FIN DEL CAMBIO AÑADIDO.
 
   const modulo = to.meta.module as NombreModulo | undefined
 
@@ -164,6 +222,12 @@ router.beforeEach((to) => {
 
       localStorage.removeItem('user')
       localStorage.removeItem('plataforma:sistemaActivo')
+
+      // CAMBIO AÑADIDO:
+      // Elimina la cookie si el usuario no tiene
+      // permisos para acceder a ningún módulo.
+      Cookies.remove('sesion', { path: '/' })
+      // FIN DEL CAMBIO AÑADIDO.
 
       return { name: 'login' }
     }
