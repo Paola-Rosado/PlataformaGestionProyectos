@@ -1065,24 +1065,44 @@ function guardarCriterio() {
             </div>
           </div>
         </div>
-        <!-- Criterios de aceptación (Solo cantidad) -->
-        <div class="seccion-detalles">
-          <h5>Criterios de aceptación</h5>
-          <p class="descripcion-detalle">
-            {{ historiaSeleccionada.criterios.length > 0 
-                ? `${historiaSeleccionada.criterios.length} ${historiaSeleccionada.criterios.length === 1 ? 'criterio registrado' : 'criterios registrados'}` 
-                : 'Esta historia aún no tiene criterios de aceptación.' }}
-          </p>
+      <!-- Criterios de aceptación y Estado del registro -->
+        <div class="seccion-detalles fila-criterios-estado">
+          <div class="rejilla-detalles">
+            <div>
+              <h5>Criterios de aceptación</h5>
+              <div class="dato-detalle">
+                <span>Cantidad registrada</span>
+                <p>
+                  {{ historiaSeleccionada.criterios.length > 0 
+                      ? `${historiaSeleccionada.criterios.length} ${historiaSeleccionada.criterios.length === 1 ? 'criterio registrado' : 'criterios registrados'}` 
+                      : 'Sin criterios registrados' }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <h5>Estado del registro</h5>
+              <div class="dato-detalle dato-disponibilidad-fila">
+                <span>Disponibilidad</span>
+                <span
+                  class="estatus-detalle"
+                  :class="historiaSeleccionada.activo ? 'estatus-finalizado' : 'chip-inactivo'"
+                >
+                  {{ historiaSeleccionada.activo ? 'Activo' : 'Inactivo' }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <!-- Estado -->
-        <div class="seccion-detalles">
-          <h5>Estado del registro</h5>
-          <span
-            class="estatus-detalle"
-            :class="historiaSeleccionada.activo ? 'estatus-finalizado' : 'chip-inactivo'"
+
+        <!-- Pie del modal con botón Cerrar a la derecha -->
+        <div class="pie-modal">
+          <button
+            type="button"
+            class="btn-guardar"
+            @click="cerrarDetalle"
           >
-            {{ historiaSeleccionada.activo ? 'Activo' : 'Inactivo' }}
-          </span>
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
@@ -1701,7 +1721,15 @@ h2 {
 }
 
 .modal-detalles .pie-modal {
-  padding: 10px 16px !important;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 12px 4px !important;
+}
+
+.modal-detalles .dato-estado {
+  display: flex;
+  align-items: center;
+  min-height: 10px;
 }
 
 /* Ajustes de tipografía y espaciados internos compactos */
@@ -1770,6 +1798,7 @@ h2 {
 .modal-detalles .seccion-detalles:has(.estatus-detalle) {
   display: flex;
   align-items: center;
+  margin-top: 2px;
   justify-content: space-between; /* Título a la izquierda, estatus a la derecha */
 }
 
@@ -1944,5 +1973,37 @@ h2 {
 
 .criterio-detalle .chip-estatus {
   margin: 4px 0;
+}
+
+.modal-detalles .fila-criterios-estado {
+  display: block !important;
+}
+
+.modal-detalles .fila-criterios-estado .rejilla-detalles {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.modal-detalles .fila-criterios-estado h5 {
+  margin: 0 0 4px !important;
+}
+
+.modal-detalles .fila-criterios-estado .contenedor-chip-estado {
+  margin-top: 10px;
+}
+
+@media (max-width: 520px) {
+  .modal-detalles .fila-criterios-estado .rejilla-detalles {
+    grid-template-columns: 1fr !important;
+    gap: 15px !important;
+  }
+}
+
+.modal-detalles .fila-criterios-estado .dato-disponibilidad-fila {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
 }
 </style>
