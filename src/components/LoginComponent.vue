@@ -1014,54 +1014,7 @@ const iniciarSesion = (): void => {
            7. ACCESOS DE PRUEBA
       ================================================= -->
 
-      <section class="accesos-prueba">
-
-        <!-- Separador -->
-        <div class="separador">
-
-          <span></span>
-
-          <p>
-            Accesos de prueba
-          </p>
-
-          <span></span>
-
-        </div>
-
-        <p class="ayuda">
-          Selecciona un rol para completar las credenciales.
-        </p>
-
-        <!-- BOTONES DE ROLES -->
-        <div class="botones-roles">
-
-          <!-- ADMINISTRADOR -->
-          <button
-            type="button"
-            @click="llenarCredenciales('Administrador')"
-          >
-            Administrador
-          </button>
-
-          <!-- INTERNO -->
-          <button
-            type="button"
-            @click="llenarCredenciales('Interno')"
-          >
-            Interno
-          </button>
-
-          <!-- EXTERNO -->
-          <button
-            type="button"
-            @click="mostrarUsuariosExternos"
-          >
-            Externo
-          </button>
-
-        </div>
-
+      
 
         <!-- ============================================
              8. OPCIONES DE USUARIOS EXTERNOS
@@ -1098,7 +1051,7 @@ const iniciarSesion = (): void => {
 
       </section>
 
-    </section>
+    
 
   </main>
 
