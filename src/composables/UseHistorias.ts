@@ -5,13 +5,15 @@
   pierda al cambiar de módulo o de sistema: una vista de Vue se destruye
   al salir de ella, y con ella los datos que tuviera guardados dentro.
 
-  Cada historia pertenece a un sistema (sistemaId) y guarda sus
-  criterios de aceptación.
+  Cada historia pertenece a un sistema (sistemaId), lleva un número
+  consecutivo dentro de ese sistema (numero) y guarda sus criterios de
+  aceptación.
 
   IMPORTANTE: mientras no haya base de datos, las historias y sus criterios
   se guardan en el navegador (ver UseAlmacenamiento.ts).
 */
 import { refPersistente } from './UseAlmacenamiento'
+import { normalizarHistorias } from './ReglasHistorias'
 import type { HistoriaUsuario } from '../interfaces/HistoriaUsuario'
 
 // Las variables se declaran fuera de la función para que todas las
@@ -19,6 +21,7 @@ import type { HistoriaUsuario } from '../interfaces/HistoriaUsuario'
 const historias = refPersistente<HistoriaUsuario>('historias', [
   {
     id: 1,
+    numero: 1,
     sistemaId: 1,
     nombre: 'Autenticación de usuarios',
     descripcion: 'Permitir inicio de sesión mediante credenciales.',
@@ -39,6 +42,7 @@ const historias = refPersistente<HistoriaUsuario>('historias', [
   },
   {
     id: 2,
+    numero: 2,
     sistemaId: 1,
     nombre: 'Módulo de reportes',
     descripcion: 'Generar reporte en formato PDF de los registros.',
@@ -51,6 +55,10 @@ const historias = refPersistente<HistoriaUsuario>('historias', [
     criterios: []
   }
 ])
+
+// Al cargar, se completan los datos guardados con versiones anteriores
+// (por ejemplo, historias sin número consecutivo).
+historias.value = normalizarHistorias(historias.value)
 
 export function useHistorias() {
   return {

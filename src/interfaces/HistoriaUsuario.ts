@@ -15,6 +15,9 @@ export interface CriterioAceptacion {
 // Historia de usuario (requerimiento).
 export interface HistoriaUsuario {
   id: number
+  // Número consecutivo dentro de su sistema (1, 2, 3…). Se asigna al
+  // registrar la historia y no cambia aunque otras se desactiven.
+  numero: number
   // Sistema al que pertenece.
   sistemaId: number
   // Texto, máximo 300 caracteres.
@@ -24,7 +27,7 @@ export interface HistoriaUsuario {
   // ID del usuario que proporcionó el requerimiento (product owner / stakeholder).
   usuarioId: number
   prioridad: 'Alta' | 'Media' | 'Baja'
-  // No puede ser 'Finalizado' mientras haya criterios pendientes.
+  // 'Finalizado' solo si tiene criterios y todos están finalizados.
   estatus: EstatusAvance
   // Fecha y hora en que se capturó (no cambia al editar).
   fechaCaptura: string
@@ -33,4 +36,5 @@ export interface HistoriaUsuario {
   activo: boolean
   criterios: CriterioAceptacion[]
 }
+
 
