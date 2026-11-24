@@ -15,24 +15,33 @@
   - Campos de texto: máximo 300 caracteres.
   - Áreas de texto: máximo 500 caracteres.
 */
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { BookOpen, Eye, Pencil } from 'lucide-vue-next'
 import { SistemaActivo } from '../router/index'
 import { useAccesos } from '../composables/UseAccesos'
 import { useSistemas } from '../composables/UseSistemas'
 import type { Usuario } from '../interfaces/Usuario'
-import { refPersistente } from '../composables/UseAlmacenamiento'
+import { useHistorias } from '../composables/UseHistorias'
+import {
+  ESTATUS_AVANCE,
+  MAX_TEXTO,
+  MAX_AREA,
+  siguienteId,
+  siguienteNumero,
+  limpiarLinea,
+  limpiarParrafo,
+  evaluarEstatus,
+  estatusTrasCriterios,
+  reabriria,
+  validarHistoria,
+  validarCriterio
+} from '../composables/ReglasHistorias'
 import type {
   HistoriaUsuario,
   CriterioAceptacion,
   EstatusAvance
 } from '../interfaces/HistoriaUsuario'
-
-
-
-const MAX_TEXTO = 300
-const MAX_AREA = 500
 
 const router = useRouter()
 
@@ -69,6 +78,12 @@ const puedeAgregar =
 const puedeCambiarEstado =
   permisoHistorias === 4
 
+// Una historia desactivada solo la ven (y pueden reactivar) quienes tienen
+// nivel 4. Para los demás usuarios deja de aparecer en el listado, pero su
+// número no se reutiliza.
+const puedeVerInactivas =
+  permisoHistorias === 4
+
 function irASistemas() {
   router.push('/panel/sistemas')
 }
@@ -88,53 +103,41 @@ function mostrarNotificacion(
 ) {
   mensaje.value = texto
   tipoMensaje.value = tipo
+
+  // Lleva la vista hasta el aviso para que el usuario lo vea.
+  nextTick(() => {
+    document.querySelector('.mensaje')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest'
+    })
+  })
+}
+
+// Muestra uno o varios errores de validación en un solo aviso.
+function mostrarErrores(errores: string[]) {
+  mostrarNotificacion(
+    errores.length === 1
+      ? (errores[0] ?? '')
+      : `Revisa los siguientes puntos: ${errores.map(e => `• ${e}`).join(' ')}`,
+    'error'
+  )
 }
 
 
-// Listado persistente de historias de usuario.
-// Si no existen registros guardados, utiliza los datos de ejemplo.
-const historias = refPersistente<HistoriaUsuario>('historias', [
-  {
-    id: 1,
-    sistemaId: 1,
-    nombre: 'Autenticación de usuarios',
-    descripcion: 'Permitir inicio de sesión mediante credenciales.',
-    usuarioId: 2,
-    prioridad: 'Alta',
-    estatus: 'En proceso',
-    fechaCaptura: '01/11/2026 08:30',
-    fechaActualizacion: '01/11/2026 08:30',
-    activo: true,
-    criterios: [
-      {
-        id: 1,
-        nombre: 'Inicio de sesión válido',
-        descripcion: 'El usuario accede al panel al escribir credenciales correctas.',
-        estatus: 'En proceso'
-      }
-    ]
-  },
-  {
-    id: 2,
-    sistemaId: 1,
-    nombre: 'Módulo de reportes',
-    descripcion: 'Generar reporte en formato PDF de los registros.',
-    usuarioId: 1,
-    prioridad: 'Media',
-    estatus: 'No iniciado',
-    fechaCaptura: '01/11/2026 09:15',
-    fechaActualizacion: '01/11/2026 09:15',
-    activo: true,
-    criterios: []
-  }
-])
+// Listado de historias: vive en un estado compartido
+// (composables/UseHistorias.ts) para que no se pierda al salir de la vista.
+const { historias } = useHistorias()
 
-// Historias del sistema seleccionado.
-const historiasDelSistema = computed(() =>
-  sistemaSeleccionadoGlobal.value
-    ? historias.value.filter(h => h.sistemaId === sistemaSeleccionadoGlobal.value!.id)
-    : []
-)
+// Historias del sistema seleccionado, ordenadas por su número consecutivo.
+// Las desactivadas solo se muestran a quienes pueden reactivarlas.
+const historiasDelSistema = computed(() => {
+  const sistema = sistemaSeleccionadoGlobal.value
+  if (!sistema) return []
+
+  return historias.value
+    .filter(h => h.sistemaId === sistema.id && (h.activo || puedeVerInactivas))
+    .sort((a, b) => a.numero - b.numero)
+})
 
 // Historia que se está modificando (o que se acaba de registrar).
 const historiaEnEdicion = computed(() =>
@@ -149,25 +152,6 @@ function personaDe(historia: HistoriaUsuario): Usuario | null {
 // En la tabla solo se muestra la fecha ("01/11/2026"), sin la hora.
 function soloFecha(texto: string) {
   return texto.split(/[,\s]/)[0] ?? ''
-}
-
-function siguienteId(lista: { id: number }[]) {
-  return lista.reduce((mayor, item) => Math.max(mayor, item.id), 0) + 1
-}
-
-// Opciones de estatus (historias y criterios). Por defecto: 'No iniciado'.
-const ESTATUS_AVANCE: EstatusAvance[] = ['No iniciado', 'En proceso', 'Finalizado']
-
-// Cantidad de criterios de aceptación que aún no están finalizados.
-function criteriosPendientes(historia: HistoriaUsuario) {
-  return historia.criterios.filter(c => c.estatus !== 'Finalizado').length
-}
-
-// Advertencia cuando se intenta finalizar una historia con criterios pendientes.
-function avisoPendientes(historia: HistoriaUsuario, pendientes: number) {
-  return `No se puede finalizar "${historia.nombre}": tiene ${pendientes} ` +
-    (pendientes === 1 ? 'criterio de aceptación pendiente' : 'criterios de aceptación pendientes') +
-    '. Finaliza todos los criterios antes de cerrar la historia.'
 }
 
 // Clase de color según el estatus.
@@ -246,22 +230,25 @@ function cancelarRegistro() {
   idEnEdicion.value = null
   mostrarFormulario.value = false
   mensaje.value = ''
+  reaperturaConfirmada.value = false
 }
 
 /*
   Guardar o modificar historia.
 
-  - Si es nueva: se guarda y el formulario se queda abierto para que
-    aparezca la sección de criterios de aceptación.
+  - Se validan los campos (ver ReglasHistorias.ts).
+  - Si es nueva: se guarda con el siguiente número consecutivo del sistema y
+    el formulario se queda abierto para que aparezca la sección de criterios.
   - Si ya existía: se guardan los cambios y se regresa al listado.
+  - Una historia desactivada no se puede modificar.
 */
 function guardarHistoria() {
   const sistema = sistemaSeleccionadoGlobal.value
   if (!sistema) return
 
   if (idEnEdicion.value === null && !puedeAgregar) {
-  mostrarNotificacion('No tienes permiso para agregar historias.', 'error')
-  return
+    mostrarNotificacion('No tienes permiso para agregar historias.', 'error')
+    return
   }
 
   if (idEnEdicion.value !== null && !puedeModificar) {
@@ -269,35 +256,56 @@ function guardarHistoria() {
     return
   }
 
-  const nombre = formulario.value.nombre.trim()
-  const descripcion = formulario.value.descripcion.trim()
-  const { usuarioId, prioridad, estatus } = formulario.value
+  const existente = historiaEnEdicion.value
 
-  if (!nombre || !descripcion || usuarioId === '' || !prioridad || !estatus) {
-    mostrarNotificacion('Por favor, completa todos los campos.', 'error')
-    return
-  }
-
-  if (nombre.length > MAX_TEXTO || descripcion.length > MAX_AREA) {
+  if (existente && !existente.activo) {
     mostrarNotificacion(
-      `El nombre admite máximo ${MAX_TEXTO} caracteres y la descripción ${MAX_AREA}.`,
-      'error'
+      'La historia está desactivada. Actívala para poder modificarla.',
+      'advertencia'
     )
     return
   }
 
-  const fecha = fechaActual()
-  const existente = historiaEnEdicion.value
+  // Validación de los campos.
+  const errores = validarHistoria(formulario.value, {
+    historias: historias.value,
+    sistemaId: sistema.id,
+    idEnEdicion: idEnEdicion.value,
+    personas: usuarios.value,
+    usuarioActualId: existente?.usuarioId ?? null
+  })
 
-  // No se puede finalizar una historia con criterios pendientes.
-  if (existente && estatus === 'Finalizado') {
-    const pendientes = criteriosPendientes(existente)
+  if (errores.length > 0) {
+    mostrarErrores(errores)
+    return
+  }
 
-    if (pendientes > 0) {
-      mostrarNotificacion(avisoPendientes(existente, pendientes), 'advertencia')
+  // Ya validados: se quitan los espacios sobrantes.
+  const nombre = limpiarLinea(formulario.value.nombre)
+  const descripcion = limpiarParrafo(formulario.value.descripcion)
+  const usuarioId = formulario.value.usuarioId as number
+  const prioridad = formulario.value.prioridad as HistoriaUsuario['prioridad']
+  const estatus = formulario.value.estatus
+
+  // Reglas del estatus (solo cuando cambia): no se finaliza con criterios
+  // pendientes ni sin criterios, y no se regresa a "No iniciado" si ya hay
+  // criterios en avance.
+  if (!existente || existente.estatus !== estatus) {
+    const evaluacion = evaluarEstatus(
+      { nombre, criterios: existente?.criterios ?? [] },
+      estatus
+    )
+
+    if (!evaluacion.permitido) {
+      mostrarNotificacion(
+        evaluacion.mensaje ?? 'El estatus seleccionado no está permitido.',
+        evaluacion.tipo ?? 'advertencia'
+      )
       return
     }
   }
+
+  const fecha = fechaActual()
 
   if (existente) {
     // Se conservan sus criterios de aceptación.
@@ -319,6 +327,8 @@ function guardarHistoria() {
 
   const nueva: HistoriaUsuario = {
     id: siguienteId(historias.value),
+    // Consecutivo respecto a la última registrada del sistema.
+    numero: siguienteNumero(historias.value, sistema.id),
     sistemaId: sistema.id,
     nombre,
     descripcion,
@@ -337,7 +347,7 @@ function guardarHistoria() {
   idEnEdicion.value = nueva.id
   fechaActualizacion.value = fecha
   mostrarNotificacion(
-    'Historia de usuario registrada. Ahora puedes agregar sus criterios de aceptación.'
+    `Historia de usuario registrada con el No. ${nueva.numero}. Ahora puedes agregar sus criterios de aceptación.`
   )
 }
 
@@ -357,6 +367,13 @@ function modificarHistoria(historia: HistoriaUsuario) {
   mostrarNotificacion('No tienes permiso para modificar historias.', 'error')
   return
 }
+  if (!historia.activo) {
+    mostrarNotificacion(
+      'La historia está desactivada. Actívala para poder modificarla.',
+      'advertencia'
+    )
+    return
+  }
   mensaje.value = ''
   idEnEdicion.value = historia.id
   fechaActualizacion.value = historia.fechaActualizacion || ''
@@ -387,7 +404,7 @@ function cambiarEstadoHistoria(historia: HistoriaUsuario) {
   )
 }
 
-// Cambia el estatus desde la columna de acciones del listado.
+// Cambia el estatus desde la columna de estatus del listado.
 function cambiarEstatusHistoria(historia: HistoriaUsuario, evento: Event) {
   const selector = evento.target as HTMLSelectElement
   const nuevo = selector.value as EstatusAvance
@@ -398,16 +415,29 @@ function cambiarEstatusHistoria(historia: HistoriaUsuario, evento: Event) {
     return
   }
 
-  // No se permite finalizar si hay criterios pendientes: se regresa el
-  // selector al estatus anterior y se muestra una advertencia.
-  if (nuevo === 'Finalizado') {
-    const pendientes = criteriosPendientes(historia)
+  if (!historia.activo) {
+    selector.value = historia.estatus
+    mostrarNotificacion(
+      'La historia está desactivada. Actívala para cambiar su estatus.',
+      'advertencia'
+    )
+    return
+  }
 
-    if (pendientes > 0) {
-      selector.value = historia.estatus
-      mostrarNotificacion(avisoPendientes(historia, pendientes), 'advertencia')
-      return
-    }
+  if (nuevo === historia.estatus) return
+
+  // No se permite finalizar con criterios pendientes (ni sin criterios), ni
+  // regresar a "No iniciado" con criterios en avance: se regresa el selector
+  // al estatus anterior y se muestra una advertencia.
+  const evaluacion = evaluarEstatus(historia, nuevo)
+
+  if (!evaluacion.permitido) {
+    selector.value = historia.estatus
+    mostrarNotificacion(
+      evaluacion.mensaje ?? 'El estatus seleccionado no está permitido.',
+      evaluacion.tipo ?? 'advertencia'
+    )
+    return
   }
 
   historia.estatus = nuevo
@@ -432,11 +462,38 @@ const formularioCriterio = ref({
   estatus: 'No iniciado' as EstatusAvance
 })
 
+/*
+  Aviso de reapertura: si la historia está "Finalizado" y se agrega un
+  criterio pendiente (o uno finalizado regresa a pendiente), el estatus de
+  la historia cambiará a "En proceso". Se pide confirmación antes.
+*/
+const mostrarConfirmacion = ref(false)
+const accionConfirmacion = ref<'abrir' | 'guardar'>('abrir')
+const reaperturaConfirmada = ref(false)
+
 function abrirModalCriterio() {
   if (!puedeAgregar) {
-  mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
-  return
-}
+    mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
+    return
+  }
+
+  const historia = historiaEnEdicion.value
+
+  if (historia && !historia.activo) {
+    mostrarNotificacion(
+      'La historia está desactivada. Actívala para agregar criterios.',
+      'advertencia'
+    )
+    return
+  }
+
+  // Historia finalizada: se avisa antes de agregar un criterio.
+  if (historia && historia.estatus === 'Finalizado' && !reaperturaConfirmada.value) {
+    accionConfirmacion.value = 'abrir'
+    mostrarConfirmacion.value = true
+    return
+  }
+
   formularioCriterio.value = { nombre: '', descripcion: '', estatus: 'No iniciado' }
   idCriterioEnEdicion.value = null
   errorCriterio.value = ''
@@ -445,9 +502,20 @@ function abrirModalCriterio() {
 
 function editarCriterio(criterio: CriterioAceptacion) {
   if (!puedeModificar) {
-  mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
-  return
-}
+    mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
+    return
+  }
+
+  const historia = historiaEnEdicion.value
+
+  if (historia && !historia.activo) {
+    mostrarNotificacion(
+      'La historia está desactivada. Actívala para modificar sus criterios.',
+      'advertencia'
+    )
+    return
+  }
+
   formularioCriterio.value = {
     nombre: criterio.nombre,
     descripcion: criterio.descripcion,
@@ -462,72 +530,136 @@ function cerrarModalCriterio() {
   mostrarModalCriterio.value = false
   idCriterioEnEdicion.value = null
   errorCriterio.value = ''
+  reaperturaConfirmada.value = false
 }
 
-// Guarda el criterio y cierra la modal.
+// El usuario acepta que la historia finalizada pase a "En proceso".
+function confirmarReapertura() {
+  reaperturaConfirmada.value = true
+  mostrarConfirmacion.value = false
+
+  if (accionConfirmacion.value === 'abrir') {
+    abrirModalCriterio()
+  } else {
+    guardarCriterio()
+  }
+}
+
+// El usuario cambia de opinión: no se agrega ni se modifica el criterio.
+function cancelarReapertura() {
+  mostrarConfirmacion.value = false
+}
+
+/*
+  Guarda el criterio. Después de guardar, el estatus de la historia se
+  ajusta solo:
+  - Todos los criterios finalizados -> la historia pasa a "Finalizado".
+  - Historia finalizada con un criterio pendiente -> pasa a "En proceso".
+  - Historia "No iniciado" con criterios en avance -> pasa a "En proceso".
+*/
 function guardarCriterio() {
   const historia = historiaEnEdicion.value
   if (!historia) return
+
   if (idCriterioEnEdicion.value === null && !puedeAgregar) {
     mostrarNotificacion('No tienes permiso para agregar criterios.', 'error')
     return
   }
+
   if (idCriterioEnEdicion.value !== null && !puedeModificar) {
     mostrarNotificacion('No tienes permiso para modificar criterios.', 'error')
     return
   }
-  const nombre = formularioCriterio.value.nombre.trim()
-  const descripcion = formularioCriterio.value.descripcion.trim()
-  const estatus = formularioCriterio.value.estatus
-  if (!nombre || !descripcion) {
-    errorCriterio.value = 'Completa el nombre y la descripción.'
-    return
-  }
-  if (nombre.length > MAX_TEXTO || descripcion.length > MAX_AREA) {
+
+  if (!historia.activo) {
     errorCriterio.value =
-      `El nombre admite máximo ${MAX_TEXTO} caracteres y la descripción ${MAX_AREA}.`
+      'La historia está desactivada. Actívala para modificar sus criterios.'
     return
   }
 
-  if (idCriterioEnEdicion.value !== null) {
+  // Validación de los campos.
+  const errores = validarCriterio(
+    formularioCriterio.value,
+    historia,
+    idCriterioEnEdicion.value
+  )
+
+  if (errores.length > 0) {
+    errorCriterio.value = errores.join(' ')
+    return
+  }
+
+  const nombre = limpiarLinea(formularioCriterio.value.nombre)
+  const descripcion = limpiarParrafo(formularioCriterio.value.descripcion)
+  const estatus = formularioCriterio.value.estatus
+
+  // Aviso previo: la historia finalizada quedaría con un criterio pendiente.
+  if (!reaperturaConfirmada.value && reabriria(historia, idCriterioEnEdicion.value, estatus)) {
+    accionConfirmacion.value = 'guardar'
+    mostrarConfirmacion.value = true
+    return
+  }
+
+  const esEdicion = idCriterioEnEdicion.value !== null
+
+  if (esEdicion) {
     const criterio = historia.criterios.find(c => c.id === idCriterioEnEdicion.value)
-    if (criterio) Object.assign(criterio, { nombre, descripcion, estatus })
-    mostrarNotificacion('Criterio de aceptación modificado correctamente.')
-    
-    // Si estás editando, sí puedes cerrar el modal opcionalmente o dejarlo abierto.
-    cerrarModalCriterio() 
+
+    if (!criterio) {
+      errorCriterio.value = 'El criterio ya no existe.'
+      return
+    }
+
+    Object.assign(criterio, { nombre, descripcion, estatus })
   } else {
-    // Es un registro nuevo: se agrega a la lista reactiva (la tabla se actualiza al instante)
+    // Registro nuevo: se agrega a la lista reactiva (la tabla se actualiza al instante).
     historia.criterios.push({
       id: siguienteId(historia.criterios),
       nombre,
       descripcion,
       estatus
     })
-    mostrarNotificacion('Criterio de aceptación agregado correctamente.')
+  }
 
-    // LIMPIAMOS LOS CAMPOS Y MANTENEMOS EL MODAL ABIERTO
+  const fecha = fechaActual()
+  historia.fechaActualizacion = fecha
+  fechaActualizacion.value = fecha
+
+  // Se ajusta el estatus de la historia según el estado de sus criterios.
+  let texto = esEdicion
+    ? 'Criterio de aceptación modificado correctamente.'
+    : 'Criterio de aceptación agregado correctamente.'
+  let tipo: 'exito' | 'advertencia' = 'exito'
+
+  const cambio = estatusTrasCriterios(historia)
+
+  if (cambio) {
+    historia.estatus = cambio.estatus
+    formulario.value.estatus = cambio.estatus
+
+    if (cambio.motivo === 'finalizada') {
+      texto = 'Todos los criterios están finalizados: la historia pasó a "Finalizado".'
+      // Si luego se agrega un criterio pendiente, se vuelve a avisar.
+      reaperturaConfirmada.value = false
+    } else if (cambio.motivo === 'reabierta') {
+      texto = 'La historia pasó a "En proceso" porque tiene criterios pendientes.'
+      tipo = 'advertencia'
+    } else {
+      texto = 'La historia pasó a "En proceso" porque ya tiene criterios en avance.'
+    }
+  }
+
+  mostrarNotificacion(texto, tipo)
+
+  if (esEdicion) {
+    cerrarModalCriterio()
+  } else {
+    // Se limpian los campos y se mantiene la modal abierta para seguir agregando.
     formularioCriterio.value = { nombre: '', descripcion: '', estatus: 'No iniciado' }
     errorCriterio.value = ''
     idCriterioEnEdicion.value = null
-    // NO se llama a cerrarModalCriterio() para que el usuario pueda seguir agregando más
-  }
-
-  // Si la historia estaba finalizada y ahora tiene criterios pendientes
-  if (historia.estatus === 'Finalizado' && criteriosPendientes(historia) > 0) {
-    const fecha = fechaActual()
-    historia.estatus = 'En proceso'
-    historia.fechaActualizacion = fecha
-    fechaActualizacion.value = fecha
-    formulario.value.estatus = 'En proceso'
-    mostrarNotificacion(
-      'La historia pasó a "En proceso" porque tiene criterios pendientes.',
-      'advertencia'
-    )
   }
 }
-  cerrarModalCriterio()
-
 </script>
 
 <template>
@@ -638,7 +770,7 @@ function guardarCriterio() {
                 :key="historia.id"
                 :class="{ 'fila-inactiva': !historia.activo }"
               >
-                <td>{{ indice + 1 }}</td>
+                <td>{{ historia.numero }}</td>
                 <td>
                   <strong>{{ historia.nombre }}</strong>
                   <span v-if="!historia.activo" class="chip-inactivo">Inactivo</span>
@@ -1191,6 +1323,47 @@ function guardarCriterio() {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ====================================================
+         MODAL: AVISO DE REAPERTURA (historia finalizada)
+         ==================================================== -->
+    <div
+      v-if="mostrarConfirmacion"
+      class="fondo-modal"
+      @click.self="cancelarReapertura"
+    >
+      <div
+        class="modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="titulo-reapertura"
+      >
+        <h3 id="titulo-reapertura">La historia está finalizada</h3>
+
+        <p>
+          "{{ historiaEnEdicion?.nombre }}" tiene el estatus <strong>Finalizado</strong>.
+          Si continúas, quedará con al menos un criterio pendiente y su estatus
+          cambiará automáticamente a <strong>En proceso</strong>.
+        </p>
+
+        <div class="acciones-formulario">
+          <button
+            type="button"
+            class="btn-cancelar"
+            @click="cancelarReapertura"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="btn-guardar"
+            @click="confirmarReapertura"
+          >
+            Continuar
+          </button>
+        </div>
       </div>
     </div>
 
